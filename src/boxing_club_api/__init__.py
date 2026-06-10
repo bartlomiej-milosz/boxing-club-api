@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from boxing-club-api!")
+"""Boxing Club API package; application behavior is implemented incrementally."""

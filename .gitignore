@@ -6,5 +6,26 @@ dist/
 wheels/
 *.egg-info
 
+# Documentation 
+AGENTS.md
+docs/
+
 # Virtual environments
 .venv
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Tool and test artifacts
+.vscode/
+.pytest_cache/
+.ruff_cache/
+.ty_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.log
+.DS_Store
