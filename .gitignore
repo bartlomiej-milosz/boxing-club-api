@@ -29,3 +29,7 @@ htmlcov/
 coverage.xml
 *.log
 .DS_Store
+
+# Readme files
+migrations/README.md
+scripts/README.md
