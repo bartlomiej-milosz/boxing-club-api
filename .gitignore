@@ -31,5 +31,8 @@ coverage.xml
 .DS_Store
 
 # Readme files
-migrations/README.md
 scripts/README.md
+tests/README.md
+
+# Temporary files
+temp/
