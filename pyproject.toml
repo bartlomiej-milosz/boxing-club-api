@@ -23,7 +23,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1,<0.29.0",
+    "httpx2>=2.16.0",
     "pytest>=9.2.0,<10.0.0",
     "pytest-cov>=7.1.0,<8.0.0",
     "ruff>=0.17.3,<0.18.0",
@@ -59,6 +59,7 @@ addopts = "-ra --strict-markers --import-mode=importlib"
 markers = [
     "integration: requires an explicitly isolated PostgreSQL test database",
     "concurrency: uses independent transactions and coordinated competitors",
+    "api: tests the API endpoints",
 ]
 
 [tool.coverage.run]
