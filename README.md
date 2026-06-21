@@ -2,21 +2,24 @@
 
 A learning and portfolio project for managing training bookings at one boxing club.
 
-**Current state: development environment prepared; API not implemented.** Python dependencies, quality tools, package layout, Alembic plumbing and local PostgreSQL are scaffolded. The specifications describe planned business behavior. No commercial deployment or customer use is claimed.
+**Current state: Python tooling, process liveness, a quality workflow, local PostgreSQL and the first SQL migration.** The application serves `GET /health/live`. Revision `0001` creates `public.room`. The booking workflows are planned.
 
-The author implements the application personally. Agents act as mentors and reviewers by default. Read [AGENTS.md](AGENTS.md) before assisting.
+The development notes describe the learning workflow and the project specifications.
 
 ## Local development
 
-See [development setup](docs/development-setup.md) for the prepared layout and database credentials policy. From the repository directory:
+From the repository directory, with uv installed, run the checks and start the app.
 
 ```sh
 make setup
 make check
-make db-up
+make test
+make run
 ```
 
-The current checkout already has an ignored local `.env`. For a fresh clone, configure it from `.env.example` first. `make test` will report no tests until you write the first meaningful test. No application start command exists before M02.
+In another terminal, run `curl -i http://127.0.0.1:8000/health/live`. The expected response is `200` with `{"status":"ok"}`. Set `APP_ENV` in the app process environment to override `local`.
+
+For the database steps, copy `.env.example` to `.env` if needed. Set distinct local passwords and update both connection URLs to match. Start Docker, then run `make db-up`, `make migrate` and `make db-shell`. `make migrate` applies SQL to the database selected by `MIGRATION_DATABASE_URL`.
 
 ## Start here
 
@@ -44,4 +47,4 @@ The project declares Python >=3.15. The selected environment was checked on Pyth
 
 The supplied [draw.io file](docs/diagrams/boxing-club-api.drawio) is design input. It contains a broader model and Java-oriented learning pages; it is not evidence of Python implementation. Current textual contracts take precedence until the diagram is reconciled.
 
-Environment instructions are available now; application examples, badges and deployment links will be added only when verified. Code, technical documentation and public project descriptions are in English; mentoring conversations may be in Polish.
+Code and public project descriptions are in English. Learning notes can be in Polish.

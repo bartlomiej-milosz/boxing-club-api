@@ -1,12 +1,12 @@
-.PHONY: help setup check lint format typecheck test db-up db-down db-logs db-shell migration-history migrate
+.PHONY: help setup check lint format typecheck test run db-up db-down db-logs db-shell migration-history migrate
 
 help:
 	@printf '%s\n' \
 	  'make setup              Install locked runtime and development dependencies' \
 	  'make check              Check lint, formatting and types (not tests)' \
 	  'make format             Format Python files' \
-	  'make test               Run pytest (exit 5 until the first tests are written)' \
-	  'make run			   	   Run the application with uvicorn (requires .env)' \
+	  'make test               Run pytest' \
+	  'make run                Run the application with Uvicorn' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
 	  'make db-down            Stop PostgreSQL; preserve its named volume' \
 	  'make db-logs            Follow PostgreSQL logs' \
