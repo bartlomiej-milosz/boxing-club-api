@@ -1,11 +1,12 @@
-.PHONY: help setup check lint format typecheck test run db-up db-down db-logs db-shell migration-history migrate
+.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate
 
 help:
 	@printf '%s\n' \
 	  'make setup              Install locked runtime and development dependencies' \
 	  'make check              Check lint, formatting and types (not tests)' \
 	  'make format             Format Python files' \
-	  'make test               Run pytest' \
+	  'make test               Run the default suite without PostgreSQL' \
+	  'make test-integration   Run tests on disposable PostgreSQL' \
 	  'make run                Run the application with Uvicorn' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
 	  'make db-down            Stop PostgreSQL; preserve its named volume' \
@@ -31,6 +32,9 @@ typecheck:
 
 test:
 	uv run --locked pytest
+
+test-integration:
+	uv run --locked pytest --postgres -m integration
 
 run:
 	uv run --locked uvicorn boxing_club_api.application.factory:create_app --factory --reload
