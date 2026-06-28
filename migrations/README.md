@@ -1,7 +1,8 @@
 # SQL migrations
 
-Revision `0001` creates the `public.room` table. Run `make migration-history`
-to see revision history without a database connection.
+Revision `0001` creates the `public.room` table. Revision `0002` adds users,
+roles, profiles and authentication sessions. Run `make migration-history` to
+see revision history without a database connection.
 
 `make migrate` loads `.env` and applies pending revisions to the PostgreSQL
 database selected by `MIGRATION_DATABASE_URL`. Use the migration-owner
