@@ -37,7 +37,9 @@ test-integration:
 	uv run --locked pytest --postgres -m integration
 
 run:
-	uv run --locked uvicorn boxing_club_api.application.factory:create_app --factory --reload
+	uv run --locked $(if $(wildcard .env),--env-file .env) \
+	  env -u MIGRATION_DATABASE_URL -u POSTGRES_PASSWORD -u APP_DB_PASSWORD \
+	  uvicorn boxing_club_api.application.factory:create_app --factory --reload
 
 db-up:
 	docker compose up -d --wait postgres

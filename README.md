@@ -2,7 +2,7 @@
 
 A learning and portfolio project for managing training bookings at one boxing club.
 
-**Current state: Python tooling, process liveness, a quality workflow, local PostgreSQL and the first SQL migration.** The application serves `GET /health/live`. Revision `0001` creates `public.room`. The booking workflows are planned.
+**Current state: liveness, local PostgreSQL, room and identity schema, initial owner bootstrap and login.** The application serves `GET /health/live` and `POST /api/v1/auth/login`. Login issues an expiring opaque bearer token. Authenticated endpoints and booking workflows are planned.
 
 The development notes describe the learning workflow and the project specifications.
 
@@ -20,6 +20,30 @@ make run
 In another terminal, run `curl -i http://127.0.0.1:8000/health/live`. The expected response is `200` with `{"status":"ok"}`. Set `APP_ENV` in the app process environment to override `local`.
 
 For the database steps, copy `.env.example` to `.env` if needed. Set distinct local passwords and update both connection URLs to match. Start Docker, then run `make db-up`, `make migrate` and `make db-shell`. `make migrate` applies SQL to the database selected by `MIGRATION_DATABASE_URL`.
+
+### Bootstrap the initial owner and try login
+
+After migrating the database, run:
+
+```sh
+uv run --locked --env-file .env python -m boxing_club_api.identity.bootstrap \
+  --email owner@example.test --first-name Sample --last-name Owner
+```
+
+Enter a password of 12–128 characters at the hidden prompt. The bootstrap uses
+`DATABASE_URL` and refuses to overwrite an existing account or create a second
+initial owner. Start the API with `make run`, then submit the owner's email and
+password as JSON to `POST /api/v1/auth/login`. The response contains
+`access_token`, `token_type` and `expires_at`. Keep the password and token out of
+shell history and logs. The development server provides interactive API docs at
+`http://127.0.0.1:8000/docs`.
+
+### PostgreSQL integration tests
+
+Run `make test-integration` with Docker available. The suite starts its own
+loopback-only PostgreSQL container, applies Alembic and gives each test a separate
+database. It generates its own credentials and connection URLs. `make test`
+runs the default suite with PostgreSQL tests skipped.
 
 ## Start here
 
