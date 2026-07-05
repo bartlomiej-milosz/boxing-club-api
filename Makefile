@@ -1,4 +1,4 @@
-.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate
+.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate bootstrap-owner
 
 help:
 	@printf '%s\n' \
@@ -8,6 +8,7 @@ help:
 	  'make test               Run the default suite without PostgreSQL' \
 	  'make test-integration   Run tests on disposable PostgreSQL' \
 	  'make run                Run the application with Uvicorn' \
+	  'make bootstrap-owner    Create the initial owner (EMAIL, FIRST_NAME, LAST_NAME)' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
 	  'make db-down            Stop PostgreSQL; preserve its named volume' \
 	  'make db-logs            Follow PostgreSQL logs' \
@@ -59,3 +60,13 @@ migration-history:
 migrate:
 	uv run --locked --env-file .env alembic upgrade head
 
+bootstrap-owner: export EMAIL := $(EMAIL)
+bootstrap-owner: export FIRST_NAME := $(FIRST_NAME)
+bootstrap-owner: export LAST_NAME := $(LAST_NAME)
+bootstrap-owner:
+	@if [ -z "$$EMAIL" ] || [ -z "$$FIRST_NAME" ] || [ -z "$$LAST_NAME" ]; then \
+	  printf '%s\n' 'Usage: make bootstrap-owner EMAIL=owner@example.test FIRST_NAME=Jan LAST_NAME=Kowalski' >&2; \
+	  exit 2; \
+	fi
+	uv run --locked --env-file .env python -m boxing_club_api.identity.bootstrap \
+	  --email "$$EMAIL" --first-name "$$FIRST_NAME" --last-name "$$LAST_NAME"
