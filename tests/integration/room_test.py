@@ -1,3 +1,5 @@
+"""Compare room ORM persistence with SQL and check constraint rollback."""
+
 from uuid import uuid4
 
 import pytest

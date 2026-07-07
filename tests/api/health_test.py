@@ -1,3 +1,5 @@
+"""Check liveness and prevent disclosure of runtime configuration."""
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

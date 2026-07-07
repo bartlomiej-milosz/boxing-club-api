@@ -1,4 +1,4 @@
-"""Alembic connection plumbing; business migrations are written by the author."""
+"""Connect Alembic to an explicit migration target and run versioned SQL revisions."""
 
 import os
 from logging.config import fileConfig
@@ -10,7 +10,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Hand-written SQL is the schema source of truth. No ORM models exist yet.
+# Hand-written migrations own the schema; ORM metadata is not used for autogeneration.
 target_metadata = None
 
 

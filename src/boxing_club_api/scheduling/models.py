@@ -1,3 +1,5 @@
+"""Map catalog records without creating or altering database tables."""
+
 from uuid import UUID
 
 from sqlalchemy import Boolean, String, text
@@ -7,6 +9,8 @@ from boxing_club_api.db.base import Base
 
 
 class Room(Base):
+    """Room catalog record with positive capacity enforced by SQL and immutable through the API."""
+
     __tablename__ = "room"
     __table_args__ = {"schema": "public"}
 

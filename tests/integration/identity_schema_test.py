@@ -1,3 +1,5 @@
+"""Check identity constraints and transaction rollback on real PostgreSQL."""
+
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 

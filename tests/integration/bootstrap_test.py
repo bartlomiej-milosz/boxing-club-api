@@ -1,3 +1,5 @@
+"""Verify initial-owner bootstrap safety, normalization and concurrent execution."""
+
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 

@@ -31,6 +31,12 @@ def bootstrap_owner(
     last_name: str,
     password: str,
 ) -> None:
+    """Create the first owner and its role in one transaction.
+
+    Reject an existing owner or occupied email with OwnerBootstrapConflict.
+    Serialize concurrent bootstraps under a table lock; roll back both records
+    on failure. Normalize fields and hash the password before opening the transaction.
+    """
     email = normalize_email(email)
     first_name = normalize_name(first_name)
     last_name = normalize_name(last_name)
@@ -62,6 +68,7 @@ def bootstrap_owner(
 
 
 def main() -> int:
+    """Read owner details and a hidden password, returning a command exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--email", required=True)
     parser.add_argument("--first-name", required=True)

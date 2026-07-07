@@ -1,3 +1,5 @@
+"""Validate login requests and map credential outcomes to HTTP responses."""
+
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -16,6 +18,8 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
+    """Bounded login credentials with normalized email and rejected unknown fields."""
+
     model_config = ConfigDict(extra="forbid")
 
     email: Annotated[str, Field(max_length=254)]
@@ -26,10 +30,13 @@ class LoginRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_login_email(cls, value: str) -> str:
+        """Apply the same email normalization used when accounts are created."""
         return normalize_email(value)
 
 
 class LoginResponse(BaseModel):
+    """One-time bearer credential and expiry returned after a successful login."""
+
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     expires_at: datetime
@@ -47,6 +54,7 @@ class LoginResponse(BaseModel):
 def login(
     credentials: LoginRequest, request: Request, response: Response
 ) -> LoginResponse | Response:
+    """Issue a bearer token or return a generic credential or database-availability error."""
     sessions: SessionFactory | None = request.app.state.db_sessions
     if sessions is not None:
         try:

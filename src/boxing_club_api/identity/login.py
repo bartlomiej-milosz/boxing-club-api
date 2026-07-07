@@ -1,3 +1,5 @@
+"""Verify credentials and issue expiring opaque tokens stored only as digests."""
+
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -18,6 +20,8 @@ DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$YT3zwOAVF/xGrsYNQe/+Jg$9bQ
 
 @dataclass(frozen=True)
 class LoginSession:
+    """Raw token and expiry returned once after a successful login transaction."""
+
     access_token: str
     expires_at: datetime
 
@@ -25,6 +29,12 @@ class LoginSession:
 def create_login_session(
     sessions: SessionFactory, email: str, password: str
 ) -> LoginSession | None:
+    """Issue an eight-hour token for valid ACTIVE credentials, otherwise return None.
+
+    Verify the password outside a database session, then recheck credentials
+    under the user lock to prevent issuance from stale password data.
+    Persist only the token digest and return the raw token after commit.
+    """
     with sessions() as session:
         credentials = session.execute(
             select(AppUser.id, AppUser.password_hash, AppUser.status).where(AppUser.email == email)

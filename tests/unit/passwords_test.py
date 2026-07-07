@@ -1,3 +1,5 @@
+"""Verify password hashing, salts and accepted length boundaries."""
+
 import pytest
 
 from boxing_club_api.identity.passwords import hash_password, verify_password

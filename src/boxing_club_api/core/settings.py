@@ -1,3 +1,5 @@
+"""Read application configuration from environment variables."""
+
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 

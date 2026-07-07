@@ -1,4 +1,8 @@
+"""Normalize account fields before validation, lookup and persistence."""
+
+
 def normalize_email(value: str) -> str:
+    """Trim and lowercase an email, raising ValueError for invalid or oversized input."""
     email = value.strip().lower()
     local, separator, domain = email.partition("@")
     if (
@@ -14,6 +18,7 @@ def normalize_email(value: str) -> str:
 
 
 def normalize_name(value: str) -> str:
+    """Trim a name, raising ValueError when empty, oversized or containing a NUL."""
     name = value.strip()
     if not 1 <= len(name) <= 100 or "\x00" in name:
         raise ValueError("Names must have between 1 and 100 characters.")

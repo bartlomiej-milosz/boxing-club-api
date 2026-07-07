@@ -1,3 +1,5 @@
+"""Map accounts, roles, profiles and login sessions to the identity schema."""
+
 from datetime import date, datetime
 from uuid import UUID
 
@@ -8,6 +10,8 @@ from boxing_club_api.db.base import Base
 
 
 class AppUser(Base):
+    """Account identity and password hash shared by all roles; never serialize this model directly."""
+
     __tablename__ = "app_user"
     __table_args__ = {"schema": "public"}
 
@@ -21,6 +25,8 @@ class AppUser(Base):
 
 
 class UserRole(Base):
+    """One role assignment identified by the user and role composite key."""
+
     __tablename__ = "user_role"
     __table_args__ = {"schema": "public"}
 
@@ -29,6 +35,8 @@ class UserRole(Base):
 
 
 class MemberProfile(Base):
+    """Member-specific data created atomically with the MEMBER role."""
+
     __tablename__ = "member_profile"
     __table_args__ = {"schema": "public"}
 
@@ -37,6 +45,8 @@ class MemberProfile(Base):
 
 
 class TrainerProfile(Base):
+    """Trainer catalog data whose active flag controls eligibility for new sessions."""
+
     __tablename__ = "trainer_profile"
     __table_args__ = {"schema": "public"}
 
@@ -46,6 +56,8 @@ class TrainerProfile(Base):
 
 
 class AuthSession(Base):
+    """Opaque login session represented by a digest, expiry and optional revocation time."""
+
     __tablename__ = "auth_session"
     __table_args__ = {"schema": "public"}
 

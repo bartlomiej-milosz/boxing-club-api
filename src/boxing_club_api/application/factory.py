@@ -1,3 +1,5 @@
+"""Assemble the API and manage the process-wide database engine lifecycle."""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -15,10 +17,12 @@ from .health import router as health_router
 
 
 def create_app() -> FastAPI:
+    """Compose routers and settings, opening database resources during application lifespan."""
     settings = Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        """Provide a session factory while the app runs and dispose its engine on shutdown."""
         database_url = settings.database_url
         if database_url is None:
             yield

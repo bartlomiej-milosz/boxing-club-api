@@ -1,8 +1,11 @@
+"""Configure synchronous database connections and per-operation session factories."""
+
 from sqlalchemy import URL, Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 
 def create_database_engine(database_url: str | URL) -> Engine:
+    """Create a synchronous engine with bounded connection and pool waits."""
     return create_engine(
         database_url,
         connect_args={"connect_timeout": 5},

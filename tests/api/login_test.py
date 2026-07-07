@@ -1,3 +1,5 @@
+"""Exercise login validation, token issuance and credential failure behavior."""
+
 from uuid import UUID
 
 import pytest

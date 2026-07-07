@@ -72,3 +72,6 @@ The project declares Python >=3.15. The selected environment was checked on Pyth
 The supplied [draw.io file](docs/diagrams/boxing-club-api.drawio) is design input. It contains a broader model and Java-oriented learning pages; it is not evidence of Python implementation. Current textual contracts take precedence until the diagram is reconciled.
 
 Code and public project descriptions are in English. Learning notes can be in Polish.
+
+Follow the [Python documentation conventions](docs/code-documentation.md) when
+adding or changing code.

@@ -1,3 +1,5 @@
+"""Configure opt-in test resources for this directory and its descendants."""
+
 import os
 import secrets
 import shutil
@@ -25,14 +27,18 @@ APP = "boxing_app"
 
 @dataclass(frozen=True)
 class TestPostgres:
+    """Disposable container connection details with passwords excluded from repr output."""
+
     port: int
     owner_password: str = field(repr=False)
     app_password: str = field(repr=False)
 
     def owner_url(self, database: str) -> URL:
+        """Build a migration-owner URL for the requested test database."""
         return self._url(database, OWNER, self.owner_password)
 
     def app_url(self, database: str) -> URL:
+        """Build an application-role URL for the requested test database."""
         return self._url(database, APP, self.app_password)
 
     def _url(self, database: str, username: str, password: str) -> URL:
@@ -47,6 +53,7 @@ class TestPostgres:
 
 
 def _wait_for_postgres(postgres: TestPostgres) -> None:
+    """Wait up to 30 seconds for the application role to connect to the template database."""
     deadline = time.monotonic() + 30
     while True:
         try:
@@ -71,6 +78,11 @@ def _wait_for_postgres(postgres: TestPostgres) -> None:
 
 @pytest.fixture(scope="session")
 def postgres(request: pytest.FixtureRequest) -> Iterator[TestPostgres]:
+    """Yield one migrated PostgreSQL container for the test run when explicitly enabled.
+
+    Use generated credentials and a loopback-only ephemeral port.
+    Remove the container and its volumes when setup fails or the session ends.
+    """
     if not request.config.getoption("--postgres"):
         pytest.skip("Run make test-integration to start disposable PostgreSQL.")
 
@@ -145,6 +157,7 @@ def postgres(request: pytest.FixtureRequest) -> Iterator[TestPostgres]:
 
 @pytest.fixture
 def database_url(postgres: TestPostgres) -> Iterator[URL]:
+    """Clone the migrated template for one test and drop the clone during teardown."""
     database = f"boxing_test_{uuid4().hex}"
     with psycopg.connect(
         host="127.0.0.1",
@@ -169,6 +182,7 @@ def database_url(postgres: TestPostgres) -> Iterator[URL]:
 
 @pytest.fixture
 def sessions(database_url: URL) -> Iterator[SessionFactory]:
+    """Yield the test database session factory and dispose its connection pool afterward."""
     engine = create_database_engine(database_url)
     try:
         yield sessionmaker(engine)

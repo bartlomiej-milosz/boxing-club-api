@@ -1,3 +1,5 @@
+"""Exercise login validation, token issuance and credential failure behavior."""
+
 from base64 import urlsafe_b64decode
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -20,6 +22,7 @@ OWNER_PASSWORD = "a sample passphrase"
 
 @pytest.fixture
 def owner(sessions: SessionFactory) -> None:
+    """Create the initial owner in the isolated database used by the current test."""
     bootstrap_owner(
         sessions, email=OWNER_EMAIL, first_name="Sample", last_name="Owner", password=OWNER_PASSWORD
     )
