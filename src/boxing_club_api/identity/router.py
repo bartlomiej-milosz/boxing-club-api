@@ -10,9 +10,15 @@ from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from boxing_club_api.application.errors import ErrorResponse, error_response
 from boxing_club_api.db.session import SessionFactory
 
+from .accounts import get_me
+from .authentication import revoke_session
+from .dependencies import CurrentPrincipal, DatabaseSessions
 from .fields import normalize_email
 from .login import create_login_session
 from .passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
+from .schemas import UserResponse
+
+identity_router = APIRouter(prefix="/api/v1", tags=["identity"])
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -71,3 +77,16 @@ def login(
             return LoginResponse(access_token=result.access_token, expires_at=result.expires_at)
 
     return error_response(503, "TEMPORARILY_UNAVAILABLE", "Login is temporarily unavailable.")
+
+
+@router.post("/logout", status_code=204)
+def logout(principal: CurrentPrincipal, sessions: DatabaseSessions) -> Response:
+    """Revoke the current bearer token while preserving other login sessions."""
+    revoke_session(sessions, principal)
+    return Response(status_code=204)
+
+
+@identity_router.get("/me", response_model=UserResponse)
+def me(principal: CurrentPrincipal, sessions: DatabaseSessions) -> UserResponse:
+    """Return the caller's account identity and roles without exposing credential data."""
+    return UserResponse.model_validate(get_me(sessions, principal))

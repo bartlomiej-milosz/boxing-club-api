@@ -13,11 +13,14 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 
+from boxing_club_api.application.factory import create_app
 from boxing_club_api.db.session import SessionFactory, create_database_engine
+from boxing_club_api.identity.bootstrap import bootstrap_owner
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DATABASE = "boxing_test_template"
@@ -188,3 +191,29 @@ def sessions(database_url: URL) -> Iterator[SessionFactory]:
         yield sessionmaker(engine)
     finally:
         engine.dispose()
+
+
+@pytest.fixture
+def client(database_url: URL, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """Serve the API against the current disposable database and close its engine afterward."""
+    monkeypatch.setenv("DATABASE_URL", database_url.render_as_string(hide_password=False))
+    with TestClient(create_app()) as api:
+        yield api
+
+
+@pytest.fixture
+def owner_headers(sessions: SessionFactory, client: TestClient) -> dict[str, str]:
+    """Create an owner and authenticate through HTTP for the current test database."""
+    bootstrap_owner(
+        sessions,
+        email="owner@example.test",
+        first_name="Sample",
+        last_name="Owner",
+        password="a sample passphrase",
+    )
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "owner@example.test", "password": "a sample passphrase"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}

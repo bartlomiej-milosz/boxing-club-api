@@ -6,13 +6,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from sqlalchemy.orm import sessionmaker
 
+from boxing_club_api.core.errors import ApplicationError
 from boxing_club_api.core.settings import Settings
 from boxing_club_api.db.session import create_database_engine
+from boxing_club_api.identity.router import identity_router
 from boxing_club_api.identity.router import router as auth_router
 
-from .errors import invalid_request
+from .errors import database_unavailable, invalid_request, operation_failed
 from .health import router as health_router
 
 
@@ -40,6 +43,10 @@ def create_app() -> FastAPI:
     app.state.app_env = settings.app_env
     app.state.db_sessions = None
     app.add_exception_handler(RequestValidationError, invalid_request)
+    app.add_exception_handler(ApplicationError, operation_failed)
+    for error_type in (OperationalError, InterfaceError, TimeoutError):
+        app.add_exception_handler(error_type, database_unavailable)
+    app.include_router(identity_router)
     app.include_router(health_router)
     app.include_router(auth_router)
     return app

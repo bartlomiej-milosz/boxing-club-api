@@ -6,6 +6,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from boxing_club_api.core.errors import ApplicationError
+
 
 class ErrorResponse(BaseModel):
     """Public error envelope with a correlation identifier and no internal diagnostics."""
@@ -25,3 +27,19 @@ def invalid_request(_request: Request, _error: Exception) -> JSONResponse:
     # Pydantic's raw errors may contain the original input, including a password.
     """Reject invalid request data without echoing Pydantic inputs or secrets."""
     return error_response(422, "VALIDATION_ERROR", "Request data is invalid.")
+
+
+def operation_failed(_request: Request, error: Exception) -> JSONResponse:
+    """Translate an expected operation failure into the common public error envelope."""
+    assert isinstance(error, ApplicationError)
+    response = error_response(error.status_code, error.code, str(error))
+    if error.status_code == 401:
+        response.headers["WWW-Authenticate"] = "Bearer"
+    return response
+
+
+def database_unavailable(_request: Request, _error: Exception) -> JSONResponse:
+    """Hide database connection and lock diagnostics behind a stable transient response."""
+    return error_response(
+        503, "TEMPORARILY_UNAVAILABLE", "The database is temporarily unavailable."
+    )
