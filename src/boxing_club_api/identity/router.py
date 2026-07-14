@@ -10,13 +10,13 @@ from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from boxing_club_api.application.errors import ErrorResponse, error_response
 from boxing_club_api.db.session import SessionFactory
 
-from .accounts import get_me
+from .accounts import create_account, get_me
 from .authentication import revoke_session
 from .dependencies import CurrentPrincipal, DatabaseSessions
 from .fields import normalize_email
 from .login import create_login_session
 from .passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
-from .schemas import UserResponse
+from .schemas import CreateUserRequest, UserResponse
 
 identity_router = APIRouter(prefix="/api/v1", tags=["identity"])
 
@@ -90,3 +90,25 @@ def logout(principal: CurrentPrincipal, sessions: DatabaseSessions) -> Response:
 def me(principal: CurrentPrincipal, sessions: DatabaseSessions) -> UserResponse:
     """Return the caller's account identity and roles without exposing credential data."""
     return UserResponse.model_validate(get_me(sessions, principal))
+
+
+@identity_router.post("/users", response_model=UserResponse, status_code=201)
+def create_user(
+    payload: CreateUserRequest,
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    response: Response,
+) -> UserResponse:
+    """Create MEMBER/TRAINER accounts for an owner and return their resource location."""
+    result = create_account(
+        sessions,
+        principal,
+        email=payload.email,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        password=payload.initial_password.get_secret_value(),
+        roles=frozenset(payload.roles),
+        trainer_bio=payload.trainer_bio,
+    )
+    response.headers["Location"] = f"/api/v1/users/{result.id}"
+    return UserResponse.model_validate(result)
