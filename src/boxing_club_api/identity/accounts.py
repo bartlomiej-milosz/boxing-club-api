@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from psycopg import errors
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.core.errors import ApplicationError
@@ -104,3 +105,34 @@ def create_account(
             ) from error
         raise
     return result
+
+
+def list_accounts(
+    sessions: SessionFactory, principal: Principal, *, page: int, size: int, role: str | None = None
+) -> tuple[list[Account], int]:
+    """Return an owner-only page ordered by email and ID, optionally filtered by role."""
+    require_owner(principal)
+    statement = select(AppUser)
+    if role is not None:
+        statement = statement.where(
+            AppUser.id.in_(select(UserRole.user_id).where(UserRole.role == role))
+        )
+    with sessions() as session:
+        total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
+        users = session.scalars(
+            statement.order_by(AppUser.email, AppUser.id).offset(page * size).limit(size)
+        ).all()
+        roles_by_user: dict[UUID, list[str]] = {user.id: [] for user in users}
+        if users:
+            for user_id, role_name in session.execute(
+                select(UserRole.user_id, UserRole.role)
+                .where(UserRole.user_id.in_(roles_by_user))
+                .order_by(UserRole.role)
+            ):
+                roles_by_user[user_id].append(role_name)
+        return [
+            Account(
+                user.id, user.email, user.first_name, user.last_name, tuple(roles_by_user[user.id])
+            )
+            for user in users
+        ], total

@@ -53,3 +53,31 @@ class CreateUserRequest(BaseModel):
         if self.trainer_bio is not None and "TRAINER" not in self.roles:
             raise ValueError("A trainer bio requires the TRAINER role.")
         return self
+
+
+class TrainerResponse(BaseModel):
+    """Catalog-safe trainer fields, including active state for owner administration."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    first_name: str
+    last_name: str
+    bio: str | None
+    active: bool
+
+
+class UpdateTrainerRequest(BaseModel):
+    """Partial biography or active-state update with unknown fields and null active rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    bio: str | None = None
+    active: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_changes(self) -> Self:
+        """Distinguish an omitted field from an explicit biography clear or invalid active null."""
+        if not self.model_fields_set or ("active" in self.model_fields_set and self.active is None):
+            raise ValueError("Supply bio or a non-null active value.")
+        return self

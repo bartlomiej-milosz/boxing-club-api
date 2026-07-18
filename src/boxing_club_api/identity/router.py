@@ -2,21 +2,24 @@
 
 from datetime import datetime
 from typing import Annotated, Literal
+from uuid import UUID
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 
 from boxing_club_api.application.errors import ErrorResponse, error_response
+from boxing_club_api.core.pagination import Page
 from boxing_club_api.db.session import SessionFactory
 
-from .accounts import create_account, get_me
+from .accounts import create_account, get_me, list_accounts
 from .authentication import revoke_session
 from .dependencies import CurrentPrincipal, DatabaseSessions
 from .fields import normalize_email
 from .login import create_login_session
 from .passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
-from .schemas import CreateUserRequest, UserResponse
+from .schemas import CreateUserRequest, TrainerResponse, UpdateTrainerRequest, UserResponse
+from .trainers import list_trainers, update_trainer
 
 identity_router = APIRouter(prefix="/api/v1", tags=["identity"])
 
@@ -112,3 +115,55 @@ def create_user(
     )
     response.headers["Location"] = f"/api/v1/users/{result.id}"
     return UserResponse.model_validate(result)
+
+
+@identity_router.get("/users", response_model=Page[UserResponse])
+def users(
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    page: Annotated[int, Query(ge=0)] = 0,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    role: Literal["OWNER", "TRAINER", "MEMBER"] | None = None,
+) -> Page[UserResponse]:
+    """List accounts for an owner with bounded pagination and an optional role filter."""
+    items, total = list_accounts(sessions, principal, page=page, size=size, role=role)
+    return Page(
+        items=[UserResponse.model_validate(item) for item in items],
+        page=page,
+        size=size,
+        total_items=total,
+    )
+
+
+@identity_router.get("/trainers", response_model=Page[TrainerResponse])
+def trainers(
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    page: Annotated[int, Query(ge=0)] = 0,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    include_inactive: bool = False,
+) -> Page[TrainerResponse]:
+    """List active trainers for authenticated users; owners may request inactive profiles."""
+    items, total = list_trainers(
+        sessions, principal, page=page, size=size, include_inactive=include_inactive
+    )
+    return Page(
+        items=[TrainerResponse.model_validate(item) for item in items],
+        page=page,
+        size=size,
+        total_items=total,
+    )
+
+
+@identity_router.patch("/trainers/{trainer_id}", response_model=TrainerResponse)
+def patch_trainer(
+    trainer_id: UUID,
+    payload: UpdateTrainerRequest,
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+) -> TrainerResponse:
+    """Let an owner change only a trainer's biography and active state."""
+    result = update_trainer(
+        sessions, principal, trainer_id, changes=payload.model_dump(exclude_unset=True)
+    )
+    return TrainerResponse.model_validate(result)

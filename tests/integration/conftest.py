@@ -217,3 +217,29 @@ def owner_headers(sessions: SessionFactory, client: TestClient) -> dict[str, str
     )
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.fixture
+def account_factory(client: TestClient, owner_headers: dict[str, str]):
+    """Create and log in a non-owner through HTTP, returning its public data and auth header."""
+
+    def create(email: str, roles: list[str]):
+        response = client.post(
+            "/api/v1/users",
+            headers=owner_headers,
+            json={
+                "email": email,
+                "first_name": "Sample",
+                "last_name": email.partition("@")[0],
+                "initial_password": "a sample passphrase",
+                "roles": roles,
+            },
+        )
+        assert response.status_code == 201, response.json()
+        login = client.post(
+            "/api/v1/auth/login", json={"email": email, "password": "a sample passphrase"}
+        )
+        assert login.status_code == 200
+        return response.json(), {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    return create
