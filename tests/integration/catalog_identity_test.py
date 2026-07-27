@@ -16,7 +16,8 @@ def test_owner_account_pages_filter_roles_and_exclude_credentials(
     first = client.get("/api/v1/users", params={"size": 1}, headers=owner_headers)
     second = client.get("/api/v1/users", params={"size": 1, "page": 1}, headers=owner_headers)
     assert first.status_code == second.status_code == 200
-    assert first.json() == {**first.json(), "page": 0, "size": 1, "total_items": 3}
+    assert set(first.json()) == {"items", "page", "size", "total_items"}
+    assert (first.json()["page"], first.json()["size"], first.json()["total_items"]) == (0, 1, 3)
     assert first.json()["items"][0]["email"] == "a@example.test"
     assert second.json()["items"][0]["email"] == "b@example.test"
     filtered = client.get("/api/v1/users", params={"role": "TRAINER"}, headers=owner_headers).json()
@@ -94,3 +95,15 @@ def test_identity_pages_reject_invalid_bounds(
 ) -> None:
     for path in ("users", "trainers"):
         assert client.get(f"/api/v1/{path}?{query}", headers=owner_headers).status_code == 422
+
+
+def test_trainer_pages_use_stable_ordering_and_total_count(
+    client: TestClient, owner_headers: dict[str, str], account_factory
+) -> None:
+    account_factory("b@example.test", ["TRAINER"])
+    account_factory("a@example.test", ["TRAINER"])
+    page = client.get("/api/v1/trainers?size=1", headers=owner_headers).json()
+    assert (page["page"], page["size"], page["total_items"]) == (0, 1, 2)
+    assert page["items"][0]["last_name"] == "a"
+    following = client.get("/api/v1/trainers?size=1&page=1", headers=owner_headers).json()
+    assert following["items"][0]["last_name"] == "b"

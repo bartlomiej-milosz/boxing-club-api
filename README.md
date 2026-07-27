@@ -2,7 +2,30 @@
 
 A learning and portfolio project for managing training bookings at one boxing club.
 
-**Current state: liveness, local PostgreSQL, room and identity schema, initial owner bootstrap and login.** The application serves `GET /health/live` and `POST /api/v1/auth/login`. Login issues an expiring opaque bearer token. Authenticated endpoints and booking workflows are planned.
+**Current state: owner bootstrap, bearer authentication, account administration,
+trainer and room catalogs, and versioned PostgreSQL schema through revision 0003.**
+Scheduled session rows have database-level room and trainer overlap protection.
+Session creation endpoints and booking workflows are planned for subsequent milestones.
+
+## Implemented API
+
+| Method and path | Access and behavior |
+|---|---|
+| `GET /health/live` | Process liveness |
+| `POST /api/v1/auth/login` | Issue an expiring opaque bearer token |
+| `POST /api/v1/auth/logout` | Revoke the current token |
+| `GET /api/v1/me` | Read the current ACTIVE account and roles |
+| `POST /api/v1/users` | OWNER creates MEMBER/TRAINER accounts with atomic profiles |
+| `GET /api/v1/users` | OWNER lists accounts with pagination and optional role filter |
+| `GET /api/v1/trainers` | Authenticated trainer catalog with pagination |
+| `PATCH /api/v1/trainers/{id}` | OWNER changes biography or activity |
+| `POST /api/v1/rooms` | OWNER creates rooms with positive fixed capacity |
+| `GET /api/v1/rooms` | Authenticated room catalog with pagination |
+| `PATCH /api/v1/rooms/{id}` | OWNER changes name or activity |
+
+List parameters use zero-based `page` and `size` (default 20, maximum 100).
+Catalogs hide inactive records by default. Only an OWNER can request
+`include_inactive=true`. Responses exclude password hashes and token digests.
 
 The development notes describe the learning workflow and the project specifications.
 
@@ -26,8 +49,8 @@ For the database steps, copy `.env.example` to `.env` if needed. Set distinct lo
 After migrating the database, run:
 
 ```sh
-uv run --locked --env-file .env python -m boxing_club_api.identity.bootstrap \
-  --email owner@example.test --first-name Sample --last-name Owner
+make bootstrap-owner \
+  EMAIL=owner@example.test FIRST_NAME=Sample LAST_NAME=Owner
 ```
 
 Enter a password of 12–128 characters at the hidden prompt. The bootstrap uses

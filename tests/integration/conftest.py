@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
@@ -220,10 +220,12 @@ def owner_headers(sessions: SessionFactory, client: TestClient) -> dict[str, str
 
 
 @pytest.fixture
-def account_factory(client: TestClient, owner_headers: dict[str, str]):
+def account_factory(
+    client: TestClient, owner_headers: dict[str, str]
+) -> Callable[[str, list[str]], tuple[dict, dict[str, str]]]:
     """Create and log in a non-owner through HTTP, returning its public data and auth header."""
 
-    def create(email: str, roles: list[str]):
+    def create(email: str, roles: list[str]) -> tuple[dict, dict[str, str]]:
         response = client.post(
             "/api/v1/users",
             headers=owner_headers,

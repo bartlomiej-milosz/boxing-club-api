@@ -1,6 +1,6 @@
 """Check room catalog authorization, visibility, immutable capacities and name conflicts."""
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -134,3 +134,20 @@ def test_room_pages_are_bounded(
     client: TestClient, owner_headers: dict[str, str], query: str
 ) -> None:
     assert client.get(f"/api/v1/rooms?{query}", headers=owner_headers).status_code == 422
+
+
+def test_room_lock_timeout_returns_transient_error_and_preserves_data(
+    client: TestClient, owner_headers: dict[str, str], sessions: SessionFactory
+) -> None:
+    """Hold the catalog row on another connection to verify the bounded update lock."""
+    room = client.post(
+        "/api/v1/rooms", headers=owner_headers, json={"name": "Locked room", "capacity": 12}
+    ).json()
+    with sessions.begin() as locker:
+        locker.scalar(select(Room).where(Room.id == UUID(room["id"])).with_for_update())
+        response = client.patch(
+            f"/api/v1/rooms/{room['id']}", headers=owner_headers, json={"name": "Changed"}
+        )
+        assert response.status_code == 503
+        assert response.json()["code"] == "TEMPORARILY_UNAVAILABLE"
+    assert client.get("/api/v1/rooms", headers=owner_headers).json()["items"] == [room]

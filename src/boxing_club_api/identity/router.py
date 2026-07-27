@@ -1,4 +1,4 @@
-"""Validate login requests and map credential outcomes to HTTP responses."""
+"""Expose bearer authentication, account administration and trainer catalog endpoints."""
 
 from datetime import datetime
 from typing import Annotated, Literal
@@ -21,7 +21,16 @@ from .passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 from .schemas import CreateUserRequest, TrainerResponse, UpdateTrainerRequest, UserResponse
 from .trainers import list_trainers, update_trainer
 
-identity_router = APIRouter(prefix="/api/v1", tags=["identity"])
+identity_router = APIRouter(
+    prefix="/api/v1",
+    tags=["identity"],
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -82,7 +91,11 @@ def login(
     return error_response(503, "TEMPORARILY_UNAVAILABLE", "Login is temporarily unavailable.")
 
 
-@router.post("/logout", status_code=204)
+@router.post(
+    "/logout",
+    status_code=204,
+    responses={401: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
 def logout(principal: CurrentPrincipal, sessions: DatabaseSessions) -> Response:
     """Revoke the current bearer token while preserving other login sessions."""
     revoke_session(sessions, principal)
@@ -95,7 +108,12 @@ def me(principal: CurrentPrincipal, sessions: DatabaseSessions) -> UserResponse:
     return UserResponse.model_validate(get_me(sessions, principal))
 
 
-@identity_router.post("/users", response_model=UserResponse, status_code=201)
+@identity_router.post(
+    "/users",
+    response_model=UserResponse,
+    status_code=201,
+    responses={409: {"model": ErrorResponse}},
+)
 def create_user(
     payload: CreateUserRequest,
     principal: CurrentPrincipal,
@@ -155,7 +173,11 @@ def trainers(
     )
 
 
-@identity_router.patch("/trainers/{trainer_id}", response_model=TrainerResponse)
+@identity_router.patch(
+    "/trainers/{trainer_id}",
+    response_model=TrainerResponse,
+    responses={404: {"model": ErrorResponse}},
+)
 def patch_trainer(
     trainer_id: UUID,
     payload: UpdateTrainerRequest,
