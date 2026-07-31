@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from tests.support import AccountFactory
 
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.scheduling.models import Room
@@ -39,7 +40,10 @@ def test_owner_creates_lists_and_updates_rooms(
 
 @pytest.mark.parametrize("roles", [["MEMBER"], ["TRAINER"]])
 def test_room_mutations_and_inactive_visibility_require_owner(
-    client: TestClient, owner_headers: dict[str, str], account_factory, roles: list[str]
+    client: TestClient,
+    owner_headers: dict[str, str],
+    account_factory: AccountFactory,
+    roles: list[str],
 ) -> None:
     _, headers = account_factory("caller@example.test", roles)
     room = client.post(
@@ -112,7 +116,7 @@ def test_room_conflicts_rollback_failed_rename_and_pages_are_stable(
     ],
 )
 def test_invalid_room_creation_is_rejected(
-    client: TestClient, owner_headers: dict[str, str], payload: dict
+    client: TestClient, owner_headers: dict[str, str], payload: dict[str, object]
 ) -> None:
     assert client.post("/api/v1/rooms", headers=owner_headers, json=payload).status_code == 422
 
@@ -121,7 +125,7 @@ def test_invalid_room_creation_is_rejected(
     "payload", [{}, {"capacity": 20}, {"name": None}, {"active": None}, {"name": "   "}]
 )
 def test_room_patch_rejects_capacity_changes_nulls_and_empty_input(
-    client: TestClient, owner_headers: dict[str, str], payload: dict
+    client: TestClient, owner_headers: dict[str, str], payload: dict[str, object]
 ) -> None:
     assert (
         client.patch(f"/api/v1/rooms/{uuid4()}", headers=owner_headers, json=payload).status_code

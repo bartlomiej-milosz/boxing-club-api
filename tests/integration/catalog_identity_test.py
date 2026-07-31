@@ -4,12 +4,13 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.support import AccountFactory
 
 pytestmark = pytest.mark.integration
 
 
 def test_owner_account_pages_filter_roles_and_exclude_credentials(
-    client: TestClient, owner_headers: dict[str, str], account_factory
+    client: TestClient, owner_headers: dict[str, str], account_factory: AccountFactory
 ) -> None:
     account_factory("a@example.test", ["MEMBER"])
     trainer, _ = account_factory("b@example.test", ["TRAINER", "MEMBER"])
@@ -31,7 +32,10 @@ def test_owner_account_pages_filter_roles_and_exclude_credentials(
 
 @pytest.mark.parametrize("roles", [["MEMBER"], ["TRAINER"], ["MEMBER", "TRAINER"]])
 def test_non_owner_cannot_read_accounts_or_change_trainers(
-    client: TestClient, owner_headers: dict[str, str], account_factory, roles: list[str]
+    client: TestClient,
+    owner_headers: dict[str, str],
+    account_factory: AccountFactory,
+    roles: list[str],
 ) -> None:
     _, headers = account_factory("caller@example.test", roles)
     trainer, _ = account_factory("trainer@example.test", ["TRAINER"])
@@ -46,7 +50,7 @@ def test_non_owner_cannot_read_accounts_or_change_trainers(
 
 
 def test_trainer_visibility_updates_and_public_field_boundary(
-    client: TestClient, owner_headers: dict[str, str], account_factory
+    client: TestClient, owner_headers: dict[str, str], account_factory: AccountFactory
 ) -> None:
     trainer, _ = account_factory("trainer@example.test", ["TRAINER"])
     _, member_headers = account_factory("member@example.test", ["MEMBER"])
@@ -81,7 +85,7 @@ def test_trainer_visibility_updates_and_public_field_boundary(
     "payload", [{}, {"active": None}, {"email": "another@example.test"}, {"roles": ["OWNER"]}]
 )
 def test_trainer_patch_rejects_empty_null_active_and_unsupported_fields(
-    client: TestClient, owner_headers: dict[str, str], payload: dict
+    client: TestClient, owner_headers: dict[str, str], payload: dict[str, object]
 ) -> None:
     assert (
         client.patch(f"/api/v1/trainers/{uuid4()}", headers=owner_headers, json=payload).status_code
@@ -98,7 +102,7 @@ def test_identity_pages_reject_invalid_bounds(
 
 
 def test_trainer_pages_use_stable_ordering_and_total_count(
-    client: TestClient, owner_headers: dict[str, str], account_factory
+    client: TestClient, owner_headers: dict[str, str], account_factory: AccountFactory
 ) -> None:
     account_factory("b@example.test", ["TRAINER"])
     account_factory("a@example.test", ["TRAINER"])

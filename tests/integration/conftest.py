@@ -6,8 +6,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,6 +16,7 @@ from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
+from tests.support import APP, OWNER, AccountFactory, AccountResponse, TestPostgres
 
 from boxing_club_api.application.factory import create_app
 from boxing_club_api.db.session import SessionFactory, create_database_engine
@@ -24,35 +24,6 @@ from boxing_club_api.identity.bootstrap import bootstrap_owner
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DATABASE = "boxing_test_template"
-OWNER = "boxing_owner"
-APP = "boxing_app"
-
-
-@dataclass(frozen=True)
-class TestPostgres:
-    """Disposable container connection details with passwords excluded from repr output."""
-
-    port: int
-    owner_password: str = field(repr=False)
-    app_password: str = field(repr=False)
-
-    def owner_url(self, database: str) -> URL:
-        """Build a migration-owner URL for the requested test database."""
-        return self._url(database, OWNER, self.owner_password)
-
-    def app_url(self, database: str) -> URL:
-        """Build an application-role URL for the requested test database."""
-        return self._url(database, APP, self.app_password)
-
-    def _url(self, database: str, username: str, password: str) -> URL:
-        return URL.create(
-            "postgresql+psycopg",
-            username=username,
-            password=password,
-            host="127.0.0.1",
-            port=self.port,
-            database=database,
-        )
 
 
 def _wait_for_postgres(postgres: TestPostgres) -> None:
@@ -220,12 +191,10 @@ def owner_headers(sessions: SessionFactory, client: TestClient) -> dict[str, str
 
 
 @pytest.fixture
-def account_factory(
-    client: TestClient, owner_headers: dict[str, str]
-) -> Callable[[str, list[str]], tuple[dict, dict[str, str]]]:
+def account_factory(client: TestClient, owner_headers: dict[str, str]) -> AccountFactory:
     """Create and log in a non-owner through HTTP, returning its public data and auth header."""
 
-    def create(email: str, roles: list[str]) -> tuple[dict, dict[str, str]]:
+    def create(email: str, roles: list[str]) -> tuple[AccountResponse, dict[str, str]]:
         response = client.post(
             "/api/v1/users",
             headers=owner_headers,
@@ -242,6 +211,7 @@ def account_factory(
             "/api/v1/auth/login", json={"email": email, "password": "a sample passphrase"}
         )
         assert login.status_code == 200
-        return response.json(), {"Authorization": f"Bearer {login.json()['access_token']}"}
+        account: AccountResponse = response.json()
+        return account, {"Authorization": f"Bearer {login.json()['access_token']}"}
 
     return create

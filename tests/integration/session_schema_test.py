@@ -11,10 +11,13 @@ import pytest
 from psycopg import errors
 from sqlalchemy import URL, text
 from sqlalchemy.exc import IntegrityError
+from tests.support import TestPostgres as PostgresConnection
 
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.models import AppUser, TrainerProfile, UserRole
 from boxing_club_api.scheduling.models import Room
+
+type SessionValue = UUID | str | datetime | int | None
 
 pytestmark = pytest.mark.integration
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,9 +50,11 @@ def catalog(sessions: SessionFactory) -> dict[str, UUID]:
     return ids
 
 
-def insert_session(sessions: SessionFactory, catalog: dict[str, UUID], **changes) -> UUID:
+def insert_session(
+    sessions: SessionFactory, catalog: dict[str, UUID], **changes: SessionValue
+) -> UUID:
     """Commit a SQL session row so schema checks are exercised independently of HTTP validation."""
-    row = {
+    row: dict[str, SessionValue] = {
         "id": uuid4(),
         "title": "Boxing fundamentals",
         "trainer_id": catalog["trainer1"],
@@ -72,7 +77,9 @@ def insert_session(sessions: SessionFactory, catalog: dict[str, UUID], **changes
             VALUES (:id,:title,:trainer_id,:room_id,:starts_at,:ends_at,:booking_closes_at,:capacity,:status,:created_at,:cancelled_at,:cancelled_by_user_id,:cancellation_reason)"""),
             row,
         )
-    return row["id"]
+    session_id = row["id"]
+    assert isinstance(session_id, UUID)
+    return session_id
 
 
 def test_extension_and_named_exclusions_are_installed(sessions: SessionFactory) -> None:
@@ -160,7 +167,10 @@ def test_cancellation_releases_both_exclusions_without_deleting_history(
     ],
 )
 def test_invalid_session_rows_fail_named_checks(
-    sessions: SessionFactory, catalog: dict[str, UUID], changes: dict, constraint: str
+    sessions: SessionFactory,
+    catalog: dict[str, UUID],
+    changes: dict[str, SessionValue],
+    constraint: str,
 ) -> None:
     with pytest.raises(IntegrityError) as failure:
         insert_session(sessions, catalog, **changes)
@@ -182,12 +192,17 @@ def test_session_references_require_existing_catalog_records(
 
 
 def test_migration_round_trip_preserves_populated_identity_and_room_tables(
-    sessions: SessionFactory, catalog: dict[str, UUID], database_url: URL, postgres
+    sessions: SessionFactory,
+    catalog: dict[str, UUID],
+    database_url: URL,
+    postgres: PostgresConnection,
 ) -> None:
     """Downgrade only this test clone, then reapply 0003 over populated 0002 tables."""
+    database = database_url.database
+    assert database is not None
     env = {
         **os.environ,
-        "MIGRATION_DATABASE_URL": postgres.owner_url(database_url.database).render_as_string(
+        "MIGRATION_DATABASE_URL": postgres.owner_url(database).render_as_string(
             hide_password=False
         ),
     }

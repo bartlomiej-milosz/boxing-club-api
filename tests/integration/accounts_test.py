@@ -1,12 +1,15 @@
 """Verify controlled account creation, profile atomicity and credential-safe responses."""
 
+from collections.abc import Sequence
+from typing import NotRequired, TypedDict
 from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select
+from psycopg import errors
+from sqlalchemy import event, insert, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, UOWTransaction
 
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.accounts import create_account
@@ -14,10 +17,24 @@ from boxing_club_api.identity.authentication import resolve_principal
 from boxing_club_api.identity.models import AppUser, MemberProfile, TrainerProfile, UserRole
 from boxing_club_api.identity.passwords import verify_password
 
+
+class AccountPayload(TypedDict):
+    """Valid account fields whose individual values can be varied by validation tests."""
+
+    email: str
+    initial_password: str
+    first_name: str
+    last_name: str
+    roles: list[str]
+    trainer_bio: NotRequired[str]
+
+
 pytestmark = pytest.mark.integration
 
 
-def account_payload(email: str = "member@example.test", roles: list[str] | None = None) -> dict:
+def account_payload(
+    email: str = "member@example.test", roles: list[str] | None = None
+) -> AccountPayload:
     """Supply valid account input so individual tests can vary one contract boundary."""
     return {
         "email": email,
@@ -101,13 +118,15 @@ def test_account_creation_requires_owner_and_rejects_normalized_duplicate(
     ],
 )
 def test_account_validation_rejects_unsupported_inputs_without_echoing_password(
-    client: TestClient, owner_headers: dict[str, str], changes: dict
+    client: TestClient, owner_headers: dict[str, str], changes: dict[str, object]
 ) -> None:
-    payload = {**account_payload(), **changes}
+    payload: dict[str, object] = {**account_payload(), **changes}
     response = client.post("/api/v1/users", json=payload, headers=owner_headers)
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
-    assert payload["initial_password"] not in response.text
+    password = payload["initial_password"]
+    assert isinstance(password, str)
+    assert password not in response.text
 
 
 def test_failed_profile_write_rolls_back_account_roles_and_profiles(
@@ -116,14 +135,17 @@ def test_failed_profile_write_rolls_back_account_roles_and_profiles(
     principal = resolve_principal(sessions, owner_headers["Authorization"].split()[1])
     assert principal is not None
 
-    def invalidate_profile(session: Session, _context, _instances) -> None:
+    def invalidate_profile(
+        session: Session, _context: UOWTransaction, _instances: Sequence[object] | None
+    ) -> None:
         for item in session.new:
             if isinstance(item, TrainerProfile):
-                item.active = None
+                # Bypass the ORM attribute type to exercise a real SQL NOT NULL failure.
+                session.execute(insert(TrainerProfile).values(user_id=item.user_id, active=None))
 
     event.listen(sessions, "before_flush", invalidate_profile)
     try:
-        with pytest.raises(IntegrityError):
+        with pytest.raises(IntegrityError) as failure:
             create_account(
                 sessions,
                 principal,
@@ -135,6 +157,8 @@ def test_failed_profile_write_rolls_back_account_roles_and_profiles(
             )
     finally:
         event.remove(sessions, "before_flush", invalidate_profile)
+    assert isinstance(failure.value.orig, errors.NotNullViolation)
+    assert failure.value.orig.diag.column_name == "active"
     with sessions() as session:
         assert (
             session.scalar(select(AppUser.id).where(AppUser.email == "rollback@example.test"))
