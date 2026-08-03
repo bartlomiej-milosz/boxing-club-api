@@ -1,9 +1,10 @@
 """Validate room catalog requests and expose explicit credential-free results."""
 
-from typing import Annotated, Self
+from datetime import datetime
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from boxing_club_api.identity.fields import normalize_name
 
@@ -57,3 +58,37 @@ class UpdateRoomRequest(BaseModel):
         ):
             raise ValueError("Supply a non-null room name or active value.")
         return self
+
+
+class CreateSessionRequest(BaseModel):
+    """Owner class input with aware timestamps and a default cutoff resolved by the service."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: Annotated[str, Field(min_length=1, max_length=120)]
+    trainer_id: UUID
+    room_id: UUID
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    capacity: Annotated[int, Field(gt=0, le=2147483647, strict=True)]
+    booking_closes_at: AwareDatetime | None = None
+
+
+class SessionResponse(BaseModel):
+    """Class facts and a transient seat snapshot, without a participant list."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    trainer_id: UUID
+    room_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+    booking_closes_at: datetime
+    capacity: int
+    status: Literal["SCHEDULED", "CANCELLED"]
+    available_seats: int
+    cancelled_at: datetime | None
+    cancelled_by_user_id: UUID | None
+    cancellation_reason: str | None

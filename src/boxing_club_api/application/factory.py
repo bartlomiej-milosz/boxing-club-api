@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from sqlalchemy.orm import sessionmaker
 
+from boxing_club_api.core.clock import utc_now
 from boxing_club_api.core.errors import ApplicationError
 from boxing_club_api.core.settings import Settings
 from boxing_club_api.db.session import create_database_engine
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
             await run_in_threadpool(engine.dispose)
 
     app = FastAPI(title="boxing-club-api", version="0.1.0", lifespan=lifespan)
+    app.state.clock = utc_now
     app.state.app_env = settings.app_env
     app.state.db_sessions = None
     app.add_exception_handler(RequestValidationError, invalid_request)
