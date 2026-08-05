@@ -7,16 +7,26 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
 import psycopg
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from psycopg import sql
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
-from tests.support import APP, OWNER, AccountFactory, AccountResponse, TestPostgres
+from tests.support import (
+    APP,
+    NOW,
+    OWNER,
+    AccountFactory,
+    AccountResponse,
+    SessionPayload,
+    TestPostgres,
+)
 
 from boxing_club_api.application.factory import create_app
 from boxing_club_api.db.session import SessionFactory, create_database_engine
@@ -215,3 +225,25 @@ def account_factory(client: TestClient, owner_headers: dict[str, str]) -> Accoun
         return account, {"Authorization": f"Bearer {login.json()['access_token']}"}
 
     return create
+
+
+@pytest.fixture
+def class_payload(
+    client: TestClient, owner_headers: dict[str, str], account_factory: AccountFactory
+) -> SessionPayload:
+    """Create active catalog records and freeze the business clock independently of auth expiry."""
+    assert isinstance(client.app, FastAPI)
+    client.app.state.clock = lambda: NOW
+    trainer, _ = account_factory("coach@example.test", ["TRAINER"])
+    room = client.post(
+        "/api/v1/rooms", headers=owner_headers, json={"name": "Main room", "capacity": 12}
+    )
+    assert room.status_code == 201
+    return {
+        "title": "Boxing fundamentals",
+        "trainer_id": trainer["id"],
+        "room_id": room.json()["id"],
+        "starts_at": (NOW + timedelta(days=1)).isoformat(),
+        "ends_at": (NOW + timedelta(days=1, hours=1)).isoformat(),
+        "capacity": 12,
+    }

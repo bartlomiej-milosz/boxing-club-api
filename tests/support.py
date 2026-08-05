@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TypedDict
+from datetime import UTC, datetime
+from typing import NotRequired, TypedDict
 
 from sqlalchemy.engine import URL
 
@@ -48,3 +49,18 @@ class TestPostgres:
             port=self.port,
             database=database,
         )
+
+
+NOW = datetime(2030, 1, 1, 10, tzinfo=UTC)
+
+
+class SessionPayload(TypedDict):
+    """JSON class input shared by HTTP scheduling and booking tests."""
+
+    title: str
+    trainer_id: str
+    room_id: str
+    starts_at: str
+    ends_at: str
+    capacity: int
+    booking_closes_at: NotRequired[str]
