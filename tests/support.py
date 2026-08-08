@@ -64,3 +64,19 @@ class SessionPayload(TypedDict):
     ends_at: str
     capacity: int
     booking_closes_at: NotRequired[str]
+
+
+def run_race[T](operations: list[Callable[[], T]]) -> list[T]:
+    """Release independent competitors together and bound barrier and completion waits."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    start = Barrier(len(operations), timeout=10)
+
+    def compete(operation: Callable[[], T]) -> T:
+        start.wait()
+        return operation()
+
+    with ThreadPoolExecutor(max_workers=len(operations)) as executor:
+        futures = [executor.submit(compete, operation) for operation in operations]
+        return [future.result(timeout=20) for future in futures]
