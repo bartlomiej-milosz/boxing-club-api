@@ -1,11 +1,11 @@
 """Create immutable dated classes while serializing catalog activity changes."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from psycopg import errors
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.core.clock import Clock, utc_now
@@ -133,3 +133,50 @@ def create_session(
             ) from error
         raise
     return result
+
+
+def list_sessions(
+    sessions: SessionFactory,
+    *,
+    starts_from: datetime,
+    starts_to: datetime,
+    page: int,
+    size: int,
+    trainer_id: UUID | None = None,
+    status: str | None = None,
+) -> tuple[list[SessionDetails], int]:
+    """Page a half-open schedule window by start and ID, excluding all participant data."""
+    if (
+        starts_from.utcoffset() is None
+        or starts_to.utcoffset() is None
+        or not timedelta(0) < starts_to - starts_from <= timedelta(days=90)
+    ):
+        raise ApplicationError(
+            422,
+            "VALIDATION_ERROR",
+            "Use an aware interval greater than zero and no longer than 90 days.",
+        )
+    query = select(TrainingSession).where(
+        TrainingSession.starts_at >= starts_from, TrainingSession.starts_at < starts_to
+    )
+    if trainer_id is not None:
+        query = query.where(TrainingSession.trainer_id == trainer_id)
+    if status is not None:
+        query = query.where(TrainingSession.status == status)
+    with sessions() as session:
+        total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = session.scalars(
+            query.order_by(TrainingSession.starts_at, TrainingSession.id)
+            .offset(page * size)
+            .limit(size)
+        ).all()
+        return [session_details(row) for row in rows], total
+
+
+def get_session(sessions: SessionFactory, session_id: UUID) -> SessionDetails:
+    """Read public facts for one class or return a stable not-found failure."""
+    with sessions() as session:
+        record = session.get(TrainingSession, session_id)
+        if record is None:
+            raise ApplicationError(404, "RESOURCE_NOT_FOUND", "Class not found.")
+        return session_details(record)
