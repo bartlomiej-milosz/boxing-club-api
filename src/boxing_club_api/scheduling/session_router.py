@@ -1,13 +1,19 @@
 """Expose dated class creation with owner authorization and explicit public errors."""
 
-from fastapi import APIRouter, Response
+from datetime import timedelta
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Query, Response
+from pydantic import AwareDatetime
 
 from boxing_club_api.application.dependencies import CurrentClock
 from boxing_club_api.application.errors import ErrorResponse
+from boxing_club_api.core.pagination import Page
 from boxing_club_api.identity.dependencies import CurrentPrincipal, DatabaseSessions
 
 from .schemas import CreateSessionRequest, SessionResponse
-from .sessions import create_session
+from .sessions import create_session, get_session, list_sessions
 
 router = APIRouter(
     prefix="/api/v1/sessions",
@@ -28,3 +34,43 @@ def add_session(
     result = create_session(sessions, principal, **payload.model_dump(), clock=clock)
     response.headers["Location"] = f"/api/v1/sessions/{result.id}"
     return SessionResponse.model_validate(result)
+
+
+@router.get("", response_model=Page[SessionResponse])
+def schedule(
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    clock: CurrentClock,
+    starts_from: Annotated[AwareDatetime | None, Query(alias="from")] = None,
+    starts_to: Annotated[AwareDatetime | None, Query(alias="to")] = None,
+    trainer_id: UUID | None = None,
+    status: Literal["SCHEDULED", "CANCELLED"] | None = None,
+    page: Annotated[int, Query(ge=0)] = 0,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> Page[SessionResponse]:
+    """List classes in a bounded interval, defaulting to the next fourteen days."""
+    lower = starts_from if starts_from is not None else clock()
+    upper = starts_to if starts_to is not None else lower + timedelta(days=14)
+    items, total = list_sessions(
+        sessions,
+        starts_from=lower,
+        starts_to=upper,
+        trainer_id=trainer_id,
+        status=status,
+        page=page,
+        size=size,
+    )
+    return Page(
+        items=[SessionResponse.model_validate(item) for item in items],
+        page=page,
+        size=size,
+        total_items=total,
+    )
+
+
+@router.get("/{session_id}", response_model=SessionResponse)
+def session_by_id(
+    session_id: UUID, principal: CurrentPrincipal, sessions: DatabaseSessions
+) -> SessionResponse:
+    """Read class facts and availability without exposing the roster."""
+    return SessionResponse.model_validate(get_session(sessions, session_id))

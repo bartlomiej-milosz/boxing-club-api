@@ -84,3 +84,44 @@ def test_session_creation_permissions_and_unknown_catalog(
         ).status_code
         == 404
     )
+
+
+def test_schedule_pages_boundaries_and_detail_privacy(
+    client: TestClient, owner_headers: dict[str, str], class_payload: SessionPayload
+) -> None:
+    original = client.post("/api/v1/sessions", headers=owner_headers, json=class_payload).json()
+    adjacent = {
+        **class_payload,
+        "starts_at": (NOW + timedelta(days=1, hours=1)).isoformat(),
+        "ends_at": (NOW + timedelta(days=1, hours=2)).isoformat(),
+    }
+    second = client.post("/api/v1/sessions", headers=owner_headers, json=adjacent).json()
+    page = client.get("/api/v1/sessions?size=1", headers=owner_headers).json()
+    assert page["total_items"] == 2 and page["items"] == [original]
+    assert client.get("/api/v1/sessions?size=1&page=1", headers=owner_headers).json()["items"] == [
+        second
+    ]
+    bounded = client.get(
+        "/api/v1/sessions",
+        headers=owner_headers,
+        params={"from": class_payload["starts_at"], "to": str(adjacent["starts_at"])},
+    ).json()
+    assert bounded["items"] == [original]
+    detail = client.get(f"/api/v1/sessions/{original['id']}", headers=owner_headers)
+    assert detail.status_code == 200 and detail.json() == original
+    assert "bookings" not in detail.json() and "members" not in detail.json()
+    assert client.get("/api/v1/sessions").status_code == 401
+    assert (
+        client.get(
+            "/api/v1/sessions",
+            headers=owner_headers,
+            params={"from": NOW.isoformat(), "to": (NOW + timedelta(days=91)).isoformat()},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.get(
+            "/api/v1/sessions", headers=owner_headers, params={"from": "2030-01-01T10:00:00"}
+        ).status_code
+        == 422
+    )
