@@ -221,7 +221,7 @@ def test_migration_round_trip_preserves_populated_identity_and_room_tables(
             assert session.scalar(text("SELECT count(*) FROM public.room")) == 2
             assert session.scalar(text("SELECT count(*) FROM public.app_user")) == 2
             assert session.scalar(text("SELECT version_num FROM public.alembic_version")) == (
-                "0002" if revision == "0002" else "0003"
+                "0002" if revision == "0002" else "0004"
             )
     insert_session(sessions, catalog)
 

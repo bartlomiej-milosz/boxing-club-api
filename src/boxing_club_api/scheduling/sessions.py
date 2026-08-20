@@ -8,6 +8,7 @@ from psycopg import errors
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
+from boxing_club_api.bookings.queries import reserved_count, reserved_counts
 from boxing_club_api.core.clock import Clock, utc_now
 from boxing_club_api.core.errors import ApplicationError
 from boxing_club_api.db.session import SessionFactory
@@ -170,7 +171,8 @@ def list_sessions(
             .offset(page * size)
             .limit(size)
         ).all()
-        return [session_details(row) for row in rows], total
+        counts = reserved_counts(session, [row.id for row in rows])
+        return [session_details(row, counts.get(row.id, 0)) for row in rows], total
 
 
 def get_session(sessions: SessionFactory, session_id: UUID) -> SessionDetails:
@@ -179,4 +181,4 @@ def get_session(sessions: SessionFactory, session_id: UUID) -> SessionDetails:
         record = session.get(TrainingSession, session_id)
         if record is None:
             raise ApplicationError(404, "RESOURCE_NOT_FOUND", "Class not found.")
-        return session_details(record)
+        return session_details(record, reserved_count(session, record.id))
