@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from sqlalchemy.orm import sessionmaker
 
+from boxing_club_api.bookings.router import router as booking_router
 from boxing_club_api.core.clock import utc_now
 from boxing_club_api.core.errors import ApplicationError
 from boxing_club_api.core.settings import Settings
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(ApplicationError, operation_failed)
     for error_type in (OperationalError, InterfaceError, TimeoutError):
         app.add_exception_handler(error_type, database_unavailable)
+    app.include_router(booking_router)
     app.include_router(session_router)
     app.include_router(room_router)
     app.include_router(identity_router)
