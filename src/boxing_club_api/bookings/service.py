@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from psycopg import errors
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.core.clock import Clock, utc_now
@@ -111,3 +111,59 @@ def reserve(
             ) from error
         raise
     return result
+
+
+def get_booking(sessions: SessionFactory, principal: Principal, booking_id: UUID) -> BookingDetails:
+    """Return an accessible booking, concealing other members' private records with 404."""
+    with sessions() as session:
+        row = session.execute(
+            select(Booking, TrainingSession.trainer_id)
+            .join(TrainingSession, Booking.session_id == TrainingSession.id)
+            .where(Booking.id == booking_id)
+        ).one_or_none()
+        if row is None:
+            raise ApplicationError(404, "RESOURCE_NOT_FOUND", "Booking not found.")
+        record, trainer_id = row
+        permitted = (
+            "OWNER" in principal.roles
+            or ("MEMBER" in principal.roles and record.member_id == principal.user_id)
+            or ("TRAINER" in principal.roles and trainer_id == principal.user_id)
+        )
+        if not permitted:
+            raise ApplicationError(404, "RESOURCE_NOT_FOUND", "Booking not found.")
+        return booking_details(record)
+
+
+def own_bookings(
+    sessions: SessionFactory,
+    principal: Principal,
+    *,
+    page: int,
+    size: int,
+    status: str | None = None,
+    starts_from: datetime | None = None,
+    starts_to: datetime | None = None,
+) -> tuple[list[BookingDetails], int]:
+    """Page the caller's retained history by creation and ID, with optional class-date filters."""
+    require_member(principal)
+    if starts_from is not None and starts_to is not None and starts_from >= starts_to:
+        raise ApplicationError(422, "VALIDATION_ERROR", "The date interval must be increasing.")
+    query = (
+        select(Booking)
+        .join(TrainingSession, Booking.session_id == TrainingSession.id)
+        .where(Booking.member_id == principal.user_id)
+    )
+    if status is not None:
+        query = query.where(Booking.status == status)
+    if starts_from is not None:
+        query = query.where(TrainingSession.starts_at >= starts_from)
+    if starts_to is not None:
+        query = query.where(TrainingSession.starts_at < starts_to)
+    with sessions() as session:
+        total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = session.scalars(
+            query.order_by(Booking.created_at.desc(), Booking.id.desc())
+            .offset(page * size)
+            .limit(size)
+        ).all()
+        return [booking_details(record) for record in rows], total
