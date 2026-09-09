@@ -1,13 +1,18 @@
 """Expose member reservations with server-controlled ownership."""
 
-from fastapi import APIRouter, Response
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Query, Response
+from pydantic import AwareDatetime
 
 from boxing_club_api.application.dependencies import CurrentClock
 from boxing_club_api.application.errors import ErrorResponse
+from boxing_club_api.core.pagination import Page
 from boxing_club_api.identity.dependencies import CurrentPrincipal, DatabaseSessions
 
 from .schemas import BookingResponse, ReserveRequest
-from .service import reserve
+from .service import get_booking, own_bookings, reserve
 
 router = APIRouter(
     prefix="/api/v1",
@@ -28,3 +33,39 @@ def add_booking(
     result = reserve(sessions, principal, payload.session_id, clock=clock)
     response.headers["Location"] = f"/api/v1/bookings/{result.id}"
     return BookingResponse.model_validate(result)
+
+
+@router.get("/me/bookings", response_model=Page[BookingResponse])
+def history(
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    page: Annotated[int, Query(ge=0)] = 0,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    status: Literal["RESERVED", "CANCELLED"] | None = None,
+    starts_from: Annotated[AwareDatetime | None, Query(alias="from")] = None,
+    starts_to: Annotated[AwareDatetime | None, Query(alias="to")] = None,
+) -> Page[BookingResponse]:
+    """Return only the authenticated member's history, including cancelled records."""
+    items, total = own_bookings(
+        sessions,
+        principal,
+        page=page,
+        size=size,
+        status=status,
+        starts_from=starts_from,
+        starts_to=starts_to,
+    )
+    return Page(
+        items=[BookingResponse.model_validate(item) for item in items],
+        page=page,
+        size=size,
+        total_items=total,
+    )
+
+
+@router.get("/bookings/{booking_id}", response_model=BookingResponse)
+def detail(
+    booking_id: UUID, principal: CurrentPrincipal, sessions: DatabaseSessions
+) -> BookingResponse:
+    """Read a booking as its member, the owner or its assigned trainer."""
+    return BookingResponse.model_validate(get_booking(sessions, principal, booking_id))

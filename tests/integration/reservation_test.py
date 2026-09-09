@@ -61,3 +61,24 @@ def test_booking_cutoff_is_exclusive(
     client.app.state.clock = lambda: NOW
     response = client.post("/api/v1/bookings", headers=headers, json={"session_id": created["id"]})
     assert response.status_code == 409 and response.json()["code"] == "BOOKING_CLOSED"
+
+
+def test_booking_reads_preserve_ownership_and_pages(
+    client: TestClient,
+    owner_headers: dict[str, str],
+    class_payload: SessionPayload,
+    account_factory: AccountFactory,
+) -> None:
+    _, member = account_factory("member@example.test", ["MEMBER"])
+    _, other = account_factory("other@example.test", ["MEMBER"])
+    created = client.post("/api/v1/sessions", headers=owner_headers, json=class_payload).json()
+    booked = client.post(
+        "/api/v1/bookings", headers=member, json={"session_id": created["id"]}
+    ).json()
+    assert client.get(f"/api/v1/bookings/{booked['id']}", headers=member).json() == booked
+    assert client.get(f"/api/v1/bookings/{booked['id']}", headers=other).status_code == 404
+    assert client.get(f"/api/v1/bookings/{booked['id']}", headers=owner_headers).status_code == 200
+    assert client.get("/api/v1/me/bookings", headers=other).json()["items"] == []
+    page = client.get("/api/v1/me/bookings?size=1", headers=member).json()
+    assert page["items"] == [booked] and page["total_items"] == 1
+    assert client.get("/api/v1/me/bookings", headers=owner_headers).status_code == 403
