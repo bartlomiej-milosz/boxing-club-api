@@ -167,3 +167,43 @@ def own_bookings(
             .limit(size)
         ).all()
         return [booking_details(record) for record in rows], total
+
+
+def cancel_booking(
+    sessions: SessionFactory,
+    principal: Principal,
+    booking_id: UUID,
+    *,
+    reason: str | None = None,
+    clock: Clock = utc_now,
+) -> BookingDetails:
+    """Cancel an owned reservation under its class lock, preserving audit fields on replay."""
+    require_member(principal)
+    with sessions.begin() as session:
+        session.execute(text("SET LOCAL lock_timeout = '2s'"))
+        session_id = session.scalar(
+            select(Booking.session_id).where(
+                Booking.id == booking_id, Booking.member_id == principal.user_id
+            )
+        )
+        if session_id is None:
+            raise ApplicationError(404, "RESOURCE_NOT_FOUND", "Booking not found.")
+        training = session.scalar(
+            select(TrainingSession).where(TrainingSession.id == session_id).with_for_update()
+        )
+        assert training is not None
+        record = session.scalar(select(Booking).where(Booking.id == booking_id).with_for_update())
+        assert record is not None
+        if record.status == "CANCELLED":
+            return booking_details(record)
+        now = clock()
+        if now >= training.starts_at:
+            raise ApplicationError(
+                409, "INVALID_STATE_TRANSITION", "Cancellation must precede the class start."
+            )
+        record.status = "CANCELLED"
+        record.cancelled_at = now
+        record.cancelled_by_user_id = principal.user_id
+        record.cancellation_reason = reason
+        result = booking_details(record)
+    return result

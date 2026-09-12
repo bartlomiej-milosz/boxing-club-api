@@ -11,8 +11,8 @@ from boxing_club_api.application.errors import ErrorResponse
 from boxing_club_api.core.pagination import Page
 from boxing_club_api.identity.dependencies import CurrentPrincipal, DatabaseSessions
 
-from .schemas import BookingResponse, ReserveRequest
-from .service import get_booking, own_bookings, reserve
+from .schemas import BookingResponse, CancelBookingRequest, ReserveRequest
+from .service import cancel_booking, get_booking, own_bookings, reserve
 
 router = APIRouter(
     prefix="/api/v1",
@@ -69,3 +69,18 @@ def detail(
 ) -> BookingResponse:
     """Read a booking as its member, the owner or its assigned trainer."""
     return BookingResponse.model_validate(get_booking(sessions, principal, booking_id))
+
+
+@router.post("/bookings/{booking_id}/cancellation", response_model=BookingResponse)
+def cancellation(
+    booking_id: UUID,
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    clock: CurrentClock,
+    payload: CancelBookingRequest | None = None,
+) -> BookingResponse:
+    """Cancel an owned reservation before start, returning the original audit on replay."""
+    result = cancel_booking(
+        sessions, principal, booking_id, reason=payload.reason if payload else None, clock=clock
+    )
+    return BookingResponse.model_validate(result)
