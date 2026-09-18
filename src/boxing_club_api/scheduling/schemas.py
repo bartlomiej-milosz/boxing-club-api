@@ -92,3 +92,19 @@ class SessionResponse(BaseModel):
     cancelled_at: datetime | None
     cancelled_by_user_id: UUID | None
     cancellation_reason: str | None
+
+
+class CancelSessionRequest(BaseModel):
+    """Required owner cancellation reason used for class and affected reservation audit."""
+
+    model_config = ConfigDict(extra="forbid")
+    reason: Annotated[str, Field(min_length=1, max_length=1000)]
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        """Reject empty or NUL-containing reasons after trimming."""
+        reason = value.strip()
+        if not reason or "\x00" in reason:
+            raise ValueError("Supply a cancellation reason.")
+        return reason

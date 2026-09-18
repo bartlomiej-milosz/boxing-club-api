@@ -12,7 +12,8 @@ from boxing_club_api.application.errors import ErrorResponse
 from boxing_club_api.core.pagination import Page
 from boxing_club_api.identity.dependencies import CurrentPrincipal, DatabaseSessions
 
-from .schemas import CreateSessionRequest, SessionResponse
+from .cancellation import cancel_class
+from .schemas import CancelSessionRequest, CreateSessionRequest, SessionResponse
 from .sessions import create_session, get_session, list_sessions
 
 router = APIRouter(
@@ -74,3 +75,17 @@ def session_by_id(
 ) -> SessionResponse:
     """Read class facts and availability without exposing the roster."""
     return SessionResponse.model_validate(get_session(sessions, session_id))
+
+
+@router.post("/{session_id}/cancellation", response_model=SessionResponse)
+def cancellation(
+    session_id: UUID,
+    payload: CancelSessionRequest,
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    clock: CurrentClock,
+) -> SessionResponse:
+    """Cancel an owner-managed class and release every active reservation atomically."""
+    return SessionResponse.model_validate(
+        cancel_class(sessions, principal, session_id, reason=payload.reason, clock=clock)
+    )
