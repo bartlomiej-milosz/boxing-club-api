@@ -43,3 +43,48 @@ def test_member_cancellation_replay_rebooking_and_exact_start(
     assert client.post(path, headers=member).json() == cancelled.json()
     history = client.get("/api/v1/me/bookings?status=CANCELLED", headers=member).json()
     assert history["total_items"] == 1 and history["items"] == [cancelled.json()]
+
+
+def test_owner_cancellation_preserves_member_audit_and_releases_slot(
+    client: TestClient,
+    owner_headers: dict[str, str],
+    class_payload: SessionPayload,
+    account_factory: AccountFactory,
+) -> None:
+    _, member = account_factory("member@example.test", ["MEMBER"])
+    _, other = account_factory("other@example.test", ["MEMBER"])
+    training = client.post("/api/v1/sessions", headers=owner_headers, json=class_payload).json()
+    first = client.post(
+        "/api/v1/bookings", headers=member, json={"session_id": training["id"]}
+    ).json()
+    prior = client.post(
+        f"/api/v1/bookings/{first['id']}/cancellation",
+        headers=member,
+        json={"reason": "Personal reason"},
+    ).json()
+    second = client.post(
+        "/api/v1/bookings", headers=other, json={"session_id": training["id"]}
+    ).json()
+    path = f"/api/v1/sessions/{training['id']}/cancellation"
+    assert client.post(path, headers=member, json={"reason": "Unauthorized"}).status_code == 403
+    result = client.post(path, headers=owner_headers, json={"reason": "Trainer unavailable"})
+    assert result.status_code == 200 and result.json()["status"] == "CANCELLED"
+    assert (
+        client.post(path, headers=owner_headers, json={"reason": "Changed reason"}).json()
+        == result.json()
+    )
+    assert client.get(f"/api/v1/bookings/{first['id']}", headers=member).json() == prior
+    updated = client.get(f"/api/v1/bookings/{second['id']}", headers=other).json()
+    assert (
+        updated["status"] == "CANCELLED" and updated["cancellation_reason"] == "Trainer unavailable"
+    )
+    assert (
+        client.post("/api/v1/bookings", headers=member, json={"session_id": training["id"]}).json()[
+            "code"
+        ]
+        == "SESSION_CANCELLED"
+    )
+    assert (
+        client.post("/api/v1/sessions", headers=owner_headers, json=class_payload).status_code
+        == 201
+    )
