@@ -43,3 +43,15 @@ class CancelBookingRequest(BaseModel):
         if "\x00" in value:
             raise ValueError("Invalid cancellation reason.")
         return value.strip() or None
+
+
+class RosterResponse(BaseModel):
+    """Minimum participant display fields permitted for an owner or assigned trainer."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    member_id: UUID
+    first_name: str
+    last_name: str
+    status: Literal["RESERVED", "CANCELLED"]
+    created_at: datetime

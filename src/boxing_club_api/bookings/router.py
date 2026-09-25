@@ -11,7 +11,8 @@ from boxing_club_api.application.errors import ErrorResponse
 from boxing_club_api.core.pagination import Page
 from boxing_club_api.identity.dependencies import CurrentPrincipal, DatabaseSessions
 
-from .schemas import BookingResponse, CancelBookingRequest, ReserveRequest
+from .roster import roster
+from .schemas import BookingResponse, CancelBookingRequest, ReserveRequest, RosterResponse
 from .service import cancel_booking, get_booking, own_bookings, reserve
 
 router = APIRouter(
@@ -84,3 +85,22 @@ def cancellation(
         sessions, principal, booking_id, reason=payload.reason if payload else None, clock=clock
     )
     return BookingResponse.model_validate(result)
+
+
+@router.get("/sessions/{session_id}/bookings", response_model=Page[RosterResponse])
+def class_roster(
+    session_id: UUID,
+    principal: CurrentPrincipal,
+    sessions: DatabaseSessions,
+    page: Annotated[int, Query(ge=0)] = 0,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    status: Literal["RESERVED", "CANCELLED"] | None = None,
+) -> Page[RosterResponse]:
+    """Show a bounded roster only to an owner or the selected class's assigned trainer."""
+    items, total = roster(sessions, principal, session_id, page=page, size=size, status=status)
+    return Page(
+        items=[RosterResponse.model_validate(item) for item in items],
+        page=page,
+        size=size,
+        total_items=total,
+    )
