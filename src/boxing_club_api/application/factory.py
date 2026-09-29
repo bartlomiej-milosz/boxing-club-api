@@ -8,6 +8,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import InterfaceError, OperationalError, TimeoutError
 from sqlalchemy.orm import sessionmaker
+from starlette.exceptions import HTTPException
 
 from boxing_club_api.bookings.router import router as booking_router
 from boxing_club_api.core.clock import utc_now
@@ -19,7 +20,8 @@ from boxing_club_api.identity.router import router as auth_router
 from boxing_club_api.scheduling.router import router as room_router
 from boxing_club_api.scheduling.session_router import router as session_router
 
-from .errors import database_unavailable, invalid_request, operation_failed
+from .correlation import correlate
+from .errors import database_unavailable, http_failure, invalid_request, operation_failed
 from .health import router as health_router
 
 
@@ -47,6 +49,8 @@ def create_app() -> FastAPI:
     app.state.clock = utc_now
     app.state.app_env = settings.app_env
     app.state.db_sessions = None
+    app.middleware("http")(correlate)
+    app.add_exception_handler(HTTPException, http_failure)
     app.add_exception_handler(RequestValidationError, invalid_request)
     app.add_exception_handler(ApplicationError, operation_failed)
     for error_type in (OperationalError, InterfaceError, TimeoutError):
