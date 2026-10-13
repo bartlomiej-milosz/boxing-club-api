@@ -1,6 +1,33 @@
 name: boxing-club-api
 
 services:
+  migrate:
+    build: .
+    image: boxing-club-api:local
+    profiles: [app]
+    command: [alembic, upgrade, head]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql+psycopg://boxing_owner:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/boxing_club
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    image: boxing-club-api:local
+    profiles: [app]
+    environment:
+      DATABASE_URL: postgresql+psycopg://boxing_app:${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}@postgres:5432/boxing_club
+      APP_ENV: local
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   postgres:
     image: postgres:18-alpine
     environment:

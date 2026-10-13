@@ -1,4 +1,4 @@
-.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate bootstrap-owner
+.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate bootstrap-owner app-up app-down
 
 help:
 	@printf '%s\n' \
@@ -8,6 +8,8 @@ help:
 	  'make test               Run the default suite without PostgreSQL' \
 	  'make test-integration   Run tests on disposable PostgreSQL' \
 	  'make run                Run the application with Uvicorn' \
+	  'make app-up             Build, migrate and start the local Compose API' \
+	  'make app-down           Stop Compose services and preserve database data' \
 	  'make bootstrap-owner    Create the initial owner (EMAIL, FIRST_NAME, LAST_NAME)' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
 	  'make db-down            Stop PostgreSQL; preserve its named volume' \
@@ -70,3 +72,9 @@ bootstrap-owner:
 	fi
 	uv run --locked --env-file .env python -m boxing_club_api.identity.bootstrap \
 	  --email "$$EMAIL" --first-name "$$FIRST_NAME" --last-name "$$LAST_NAME"
+
+app-up:
+	docker compose --profile app up --build -d --wait app
+
+app-down:
+	docker compose --profile app down
