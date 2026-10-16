@@ -28,3 +28,7 @@ jobs:
         run: make check
       - name: Run tests
         run: make test
+      - name: Migrate disposable PostgreSQL and run integration and race tests
+        run: make test-integration
+      - name: Build the non-root application image
+        run: docker build --tag boxing-club-api:ci .
