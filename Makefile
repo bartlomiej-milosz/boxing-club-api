@@ -1,4 +1,4 @@
-.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate bootstrap-owner app-up app-down
+.PHONY: help setup check lint format typecheck test test-integration run db-up db-down db-logs db-shell migration-history migrate bootstrap-owner app-up app-down seed-demo
 
 help:
 	@printf '%s\n' \
@@ -78,3 +78,6 @@ app-up:
 
 app-down:
 	docker compose --profile app down
+
+seed-demo:
+	uv run --locked --env-file .env python -m boxing_club_api.demo --confirm-demo
