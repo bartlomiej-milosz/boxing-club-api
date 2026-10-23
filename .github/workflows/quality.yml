@@ -32,3 +32,7 @@ jobs:
         run: make test-integration
       - name: Build the non-root application image
         run: docker build --tag boxing-club-api:ci .
+      - name: Check Bash walkthrough
+        run: |
+          bash -n scripts/walkthrough.sh
+          shellcheck scripts/walkthrough.sh
