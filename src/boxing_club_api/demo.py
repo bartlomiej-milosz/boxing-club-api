@@ -46,6 +46,7 @@ def seed_demo(sessions: SessionFactory, password: str, *, clock: Clock = utc_now
     starts = (now + timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
     with sessions.begin() as session:
         session.execute(text("SET LOCAL lock_timeout = '2s'"))
+        session.execute(text("LOCK TABLE public.user_role IN SHARE ROW EXCLUSIVE MODE"))
         session.execute(text("LOCK TABLE public.app_user IN SHARE ROW EXCLUSIVE MODE"))
         if (
             session.scalar(select(AppUser.id).limit(1)) is not None
