@@ -1,100 +1,117 @@
 # Boxing Club API
 
-A learning and portfolio project for managing training bookings at one boxing club.
+A single-club training booking API built as a Python learning and portfolio project.
+Stage 1 implements accounts, opaque bearer authentication, rooms, dated classes,
+reservations, cancellation and trainer rosters. It is a synchronous modular monolith
+using FastAPI, SQLAlchemy, psycopg and PostgreSQL.
 
-**Current state: owner bootstrap, bearer authentication, account administration,
-trainer and room catalogs, and versioned PostgreSQL schema through revision 0003.**
-Scheduled session rows have database-level room and trainer overlap protection.
-Session creation endpoints and booking workflows are planned for subsequent milestones.
+Paid memberships, payments, attendance and hosted deployment remain planned for
+later stages. There is no frontend. This project does not represent commercial use.
 
-## Implemented API
+## Run locally
 
-| Method and path | Access and behavior |
-|---|---|
-| `GET /health/live` | Process liveness |
-| `POST /api/v1/auth/login` | Issue an expiring opaque bearer token |
-| `POST /api/v1/auth/logout` | Revoke the current token |
-| `GET /api/v1/me` | Read the current ACTIVE account and roles |
-| `POST /api/v1/users` | OWNER creates MEMBER/TRAINER accounts with atomic profiles |
-| `GET /api/v1/users` | OWNER lists accounts with pagination and optional role filter |
-| `GET /api/v1/trainers` | Authenticated trainer catalog with pagination |
-| `PATCH /api/v1/trainers/{id}` | OWNER changes biography or activity |
-| `POST /api/v1/rooms` | OWNER creates rooms with positive fixed capacity |
-| `GET /api/v1/rooms` | Authenticated room catalog with pagination |
-| `PATCH /api/v1/rooms/{id}` | OWNER changes name or activity |
-
-List parameters use zero-based `page` and `size` (default 20, maximum 100).
-Catalogs hide inactive records by default. Only an OWNER can request
-`include_inactive=true`. Responses exclude password hashes and token digests.
-
-The development notes describe the learning workflow and the project specifications.
-
-## Local development
-
-From the repository directory, with uv installed, run the checks and start the app.
+Requirements: Docker with Compose, uv, and Python 3.15. Curl, jq and Bash are used
+by the walkthrough. Runtime and development versions are pinned in `uv.lock`.
 
 ```sh
+cp .env.example .env
+# Replace both placeholder passwords with distinct URL-safe values.
+# Update DATABASE_URL and MIGRATION_DATABASE_URL to match.
 make setup
+make app-up
+```
+
+`app-up` builds a non-root image, waits for PostgreSQL, runs the explicit one-shot
+migration service, then starts the API. The API never migrates its schema at startup.
+Ports are bound to loopback. Override `APP_PORT` or `POSTGRES_PORT` in `.env` if needed.
+Local Compose interpolates URL-safe passwords into its internal connection URLs.
+For example, generate a new value with `uv run python -c 'import secrets; print(secrets.token_urlsafe(24))'`.
+
+- [Interactive API documentation](http://127.0.0.1:8000/docs)
+- [Liveness](http://127.0.0.1:8000/health/live)
+- [Database/schema readiness](http://127.0.0.1:8000/health/ready)
+
+`make app-down` stops services and preserves the database volume. For development
+without the application container, use `make db-up`, `make migrate` and `make run`.
+
+## Initialize fictional demo data
+
+Use a fresh, empty local database. The initializer refuses existing accounts or
+rooms and commits the entire fictional dataset atomically.
+
+```sh
+make seed-demo
+bash scripts/walkthrough.sh
+```
+
+Choose a password of 12–128 characters at the hidden initializer prompt. The
+fictional accounts `owner@example.test`, `trainer@example.test`, `member@example.test`
+and `other@example.test` share this explicitly chosen demo password. Enter it again
+when the walkthrough asks. There is no default password in the application.
+
+The walkthrough logs in, creates and lists catalog/class records, reserves a place,
+checks the duplicate conflict, cancels and rebooks, cancels the class, and verifies
+logout. Temporary credential and token files have private permissions and are
+removed on exit. Tokens are supplied to curl through header files. Repeating the
+walkthrough retains demonstration history and releases its class slot on exit.
+Set `APP_BASE_URL` when using a different local port.
+
+For an empty database that should receive only an initial owner, use this command
+instead of the demo initializer:
+
+```sh
+make bootstrap-owner EMAIL=owner@example.test FIRST_NAME=Sample LAST_NAME=Owner
+```
+
+## HTTP API
+
+Business routes have the `/api/v1` prefix. Protected routes require an ACTIVE
+account and `Authorization: Bearer <token>`. Login returns the raw token once;
+PostgreSQL stores its digest and an eight-hour expiry. Logout revokes that token.
+
+| Methods and paths | Behavior |
+|---|---|
+| `POST /auth/login`, `POST /auth/logout`, `GET /me` | Authentication and current identity |
+| `POST /users`, `GET /users` | Owner-created MEMBER/TRAINER accounts and account listing |
+| `GET /trainers`, `PATCH /trainers/{id}` | Trainer catalog and owner-managed bio/activity |
+| `POST /rooms`, `GET /rooms`, `PATCH /rooms/{id}` | Room catalog with immutable capacity |
+| `POST /sessions`, `GET /sessions`, `GET /sessions/{id}` | Create and inspect dated classes |
+| `POST /sessions/{id}/cancellation` | Owner cancellation with original audit retained on replay |
+| `GET /sessions/{id}/bookings` | Roster for the owner or assigned trainer |
+| `POST /bookings`, `GET /me/bookings`, `GET /bookings/{id}` | Member reservations and role-safe history |
+| `POST /bookings/{id}/cancellation` | Owning member cancellation before class start |
+
+Lists return `items`, zero-based `page`, `size` and `total_items`. Default size is
+20, maximum 100. Schedule queries use inclusive `from` and exclusive `to`, default
+to the next 14 days, and allow at most 90 days. Timestamps require UTC offsets.
+Inactive catalog entries require an owner's explicit `include_inactive=true`.
+
+Named PostgreSQL exclusion constraints reject overlapping SCHEDULED room or trainer
+intervals while permitting adjacent classes. A class row lock protects reservation
+counts and every operation that releases a seat. A partial unique index guards
+against duplicate active member/class reservations. Cancelled history is retained.
+
+Errors contain `code`, `message` and `request_id`, matching `X-Request-ID`.
+Validation is 422, authentication 401, role rejection 403, inaccessible private
+resources 404, business conflicts 409, and temporary database/lock failures 503.
+Readiness checks schema revision `0004`; liveness has no database dependency.
+
+## Verify
+
+```sh
 make check
 make test
-make run
+make test-integration
+bash -n scripts/walkthrough.sh
+shellcheck scripts/walkthrough.sh
 ```
 
-In another terminal, run `curl -i http://127.0.0.1:8000/health/live`. The expected response is `200` with `{"status":"ok"}`. Set `APP_ENV` in the app process environment to override `local`.
+Integration and race tests start a disposable PostgreSQL container with generated
+credentials, migrate it and clone a separate database per test. They never target
+the development database. SQLite is not used as a substitute for PostgreSQL locks
+or exclusion constraints. CI runs these commands and builds the application image.
+An actual remote CI result must be checked separately from local results.
 
-For the database steps, copy `.env.example` to `.env` if needed. Set distinct local passwords and update both connection URLs to match. Start Docker, then run `make db-up`, `make migrate` and `make db-shell`. `make migrate` applies SQL to the database selected by `MIGRATION_DATABASE_URL`.
-
-### Bootstrap the initial owner and try login
-
-After migrating the database, run:
-
-```sh
-make bootstrap-owner \
-  EMAIL=owner@example.test FIRST_NAME=Sample LAST_NAME=Owner
-```
-
-Enter a password of 12–128 characters at the hidden prompt. The bootstrap uses
-`DATABASE_URL` and refuses to overwrite an existing account or create a second
-initial owner. Start the API with `make run`, then submit the owner's email and
-password as JSON to `POST /api/v1/auth/login`. The response contains
-`access_token`, `token_type` and `expires_at`. Keep the password and token out of
-shell history and logs. The development server provides interactive API docs at
-`http://127.0.0.1:8000/docs`.
-
-### PostgreSQL integration tests
-
-Run `make test-integration` with Docker available. The suite starts its own
-loopback-only PostgreSQL container, applies Alembic and gives each test a separate
-database. It generates its own credentials and connection URLs. `make test`
-runs the default suite with PostgreSQL tests skipped.
-
-## Start here
-
-1. [Documentation map](docs/README.md)
-2. [Product and three release stages](docs/product.md)
-3. [Roadmap and milestone index](docs/roadmap.md)
-4. [Actual progress and next step](docs/progress.md)
-5. [Working with an agent](docs/agent-workflow.md)
-
-## Planned releases
-
-| Release | Outcome | Milestones |
-|---|---|---|
-| 0.1 / Stage 1 | Locally reproducible booking MVP, real authentication, PostgreSQL, race protection, tests, Docker and CI; first portfolio checkpoint | M01–M32 |
-| 0.2 / Stage 2 | Memberships, manual payment records, attendance and a first controlled VPS demo | M33–M56 |
-| 1.0 / Stage 3 | Repeatable operations, companion Python CLI, deployment automation, monitoring and recovery evidence | M57–M73 |
-
-Release numbers are targets. Stage 1 can be presented and used in applications once its evidence and explanation gates pass; later stages must not delay that checkpoint. This is not a guarantee of recruitment outcomes.
-
-## Selected direction
-
-Python, FastAPI, Pydantic, synchronous SQLAlchemy, psycopg, PostgreSQL, Alembic with hand-written SQL, uv, Ruff, ty and pytest. One modular monolith. Bash and curl support learning, smoke tests and operations. See [architecture](docs/architecture.md) for boundaries and [decisions](docs/decisions.md) for tradeoffs.
-
-The project declares Python >=3.15. The selected environment was checked on Python 3.15.2; versions are locked in uv.lock. M01 still includes the author’s explanation checkpoint.
-
-The supplied [draw.io file](docs/diagrams/boxing-club-api.drawio) is design input. It contains a broader model and Java-oriented learning pages; it is not evidence of Python implementation. Current textual contracts take precedence until the diagram is reconciled.
-
-Code and public project descriptions are in English. Learning notes can be in Polish.
-
-Follow the [Python documentation conventions](docs/code-documentation.md) when
-adding or changing code.
+See the [Stage 1 implementation and verification notes](docs/phase-1.md) and the
+[Python documentation conventions](docs/code-documentation.md). The historical Java
+and broader design diagrams in local planning notes are not the current schema.
