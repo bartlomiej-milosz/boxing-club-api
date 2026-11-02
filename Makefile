@@ -6,6 +6,7 @@ help:
 	  'make check              Check lint, formatting and types (not tests)' \
 	  'make format             Format Python files' \
 	  'make test               Run pytest (exit 5 until the first tests are written)' \
+	  'make run			   	   Run the application with uvicorn (requires .env)' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
 	  'make db-down            Stop PostgreSQL; preserve its named volume' \
 	  'make db-logs            Follow PostgreSQL logs' \
@@ -31,6 +32,9 @@ typecheck:
 test:
 	uv run --locked pytest
 
+run:
+	uv run --locked uvicorn boxing_club_api.application.factory:create_app --factory --reload
+
 db-up:
 	docker compose up -d --wait postgres
 
@@ -48,3 +52,4 @@ migration-history:
 
 migrate:
 	uv run --locked --env-file .env alembic upgrade head
+
