@@ -28,6 +28,8 @@ docs/
 htmlcov/
 coverage.xml
 *.log
+
+# macOS Finder metadata in any directory
 .DS_Store
 
 # Temporary files
