@@ -112,6 +112,5 @@ the development database. SQLite is not used as a substitute for PostgreSQL lock
 or exclusion constraints. CI runs these commands and builds the application image.
 An actual remote CI result must be checked separately from local results.
 
-See the [Stage 1 implementation and verification notes](docs/phase-1.md) and the
-[Python documentation conventions](docs/code-documentation.md). The historical Java
-and broader design diagrams in local planning notes are not the current schema.
+Detailed project documentation and agent instructions are maintained locally
+outside Git.
