@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 
 from .authentication import Principal, require_owner
@@ -112,6 +113,7 @@ def list_accounts(
 ) -> tuple[list[Account], int]:
     """Return an owner-only page ordered by email and ID, optionally filtered by role."""
     require_owner(principal)
+    offset = page_offset(page, size)
     statement = select(AppUser)
     if role is not None:
         statement = statement.where(
@@ -120,7 +122,7 @@ def list_accounts(
     with sessions() as session:
         total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
         users = session.scalars(
-            statement.order_by(AppUser.email, AppUser.id).offset(page * size).limit(size)
+            statement.order_by(AppUser.email, AppUser.id).offset(offset).limit(size)
         ).all()
         roles_by_user: dict[UUID, list[str]] = {user.id: [] for user in users}
         if users:

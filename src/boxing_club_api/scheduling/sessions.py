@@ -1,7 +1,7 @@
 """Create immutable dated classes while serializing catalog activity changes."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from psycopg import errors
@@ -9,8 +9,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.bookings.queries import reserved_count, reserved_counts
-from boxing_club_api.core.clock import Clock, utc_now
+from boxing_club_api.core.clock import Clock, as_utc, utc_now
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.authentication import Principal, require_owner
 from boxing_club_api.identity.models import AppUser, TrainerProfile
@@ -79,11 +80,7 @@ def create_session(
     cutoff = booking_closes_at if booking_closes_at is not None else starts_at
     if not title or len(title) > 120 or "\x00" in title or not 1 <= capacity <= 2147483647:
         raise ApplicationError(422, "VALIDATION_ERROR", "Invalid class title or capacity.")
-    if any(value.utcoffset() is None for value in (starts_at, ends_at, cutoff)):
-        raise ApplicationError(
-            422, "VALIDATION_ERROR", "Class timestamps must include a UTC offset."
-        )
-    starts_at, ends_at, cutoff = (value.astimezone(UTC) for value in (starts_at, ends_at, cutoff))
+    starts_at, ends_at, cutoff = (as_utc(value) for value in (starts_at, ends_at, cutoff))
     if ends_at <= starts_at or cutoff > starts_at:
         raise ApplicationError(
             422, "VALIDATION_ERROR", "Class times or booking cutoff are invalid."
@@ -140,18 +137,22 @@ def list_sessions(
     sessions: SessionFactory,
     *,
     starts_from: datetime,
-    starts_to: datetime,
+    starts_to: datetime | None,
     page: int,
     size: int,
     trainer_id: UUID | None = None,
     status: str | None = None,
 ) -> tuple[list[SessionDetails], int]:
-    """Page a half-open schedule window by start and ID, excluding all participant data."""
-    if (
-        starts_from.utcoffset() is None
-        or starts_to.utcoffset() is None
-        or not timedelta(0) < starts_to - starts_from <= timedelta(days=90)
-    ):
+    """Page an aware window of up to 90 days, defaulting to fourteen days from its start."""
+    offset = page_offset(page, size)
+    starts_from = as_utc(starts_from)
+    try:
+        starts_to = as_utc(starts_to) if starts_to is not None else starts_from + timedelta(days=14)
+    except OverflowError as error:
+        raise ApplicationError(
+            422, "VALIDATION_ERROR", "The default schedule end is outside the supported date range."
+        ) from error
+    if not timedelta(0) < starts_to - starts_from <= timedelta(days=90):
         raise ApplicationError(
             422,
             "VALIDATION_ERROR",
@@ -167,9 +168,7 @@ def list_sessions(
     with sessions() as session:
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = session.scalars(
-            query.order_by(TrainingSession.starts_at, TrainingSession.id)
-            .offset(page * size)
-            .limit(size)
+            query.order_by(TrainingSession.starts_at, TrainingSession.id).offset(offset).limit(size)
         ).all()
         counts = reserved_counts(session, [row.id for row in rows])
         return [session_details(row, counts.get(row.id, 0)) for row in rows], total

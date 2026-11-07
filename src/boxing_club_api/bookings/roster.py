@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.authentication import Principal
 from boxing_club_api.identity.models import AppUser
@@ -39,6 +40,7 @@ def roster(
     """Page a class roster by creation and ID after checking role and trainer assignment."""
     if not principal.roles & {"OWNER", "TRAINER"}:
         raise ApplicationError(403, "FORBIDDEN", "Owner or assigned trainer access is required.")
+    offset = page_offset(page, size)
     with sessions() as session:
         training = session.get(TrainingSession, session_id)
         if training is None:
@@ -63,6 +65,6 @@ def roster(
             query = query.where(Booking.status == status)
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = session.execute(
-            query.order_by(Booking.created_at, Booking.id).offset(page * size).limit(size)
+            query.order_by(Booking.created_at, Booking.id).offset(offset).limit(size)
         ).all()
         return [RosterEntry(*row) for row in rows], total

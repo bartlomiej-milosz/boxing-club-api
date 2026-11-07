@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select, text
 
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 
 from .authentication import Principal, require_owner
@@ -32,6 +33,7 @@ def list_trainers(
     include_inactive: bool = False,
 ) -> tuple[list[Trainer], int]:
     """Page trainers by surname, first name and ID; only owners may include inactive profiles."""
+    offset = page_offset(page, size)
     if include_inactive:
         require_owner(principal)
     statement = (
@@ -51,7 +53,7 @@ def list_trainers(
         total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
         rows = session.execute(
             statement.order_by(AppUser.last_name, AppUser.first_name, AppUser.id)
-            .offset(page * size)
+            .offset(offset)
             .limit(size)
         ).all()
         return [Trainer(*row) for row in rows], total

@@ -8,6 +8,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.authentication import Principal, require_owner
 from boxing_club_api.identity.fields import normalize_name
@@ -60,6 +61,7 @@ def list_rooms(
     include_inactive: bool = False,
 ) -> tuple[list[RoomDetails], int]:
     """Page rooms by name and ID; restrict inactive-room visibility to owners."""
+    offset = page_offset(page, size)
     if include_inactive:
         require_owner(principal)
     statement = select(Room)
@@ -68,7 +70,7 @@ def list_rooms(
     with sessions() as session:
         total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
         rooms = session.scalars(
-            statement.order_by(Room.name, Room.id).offset(page * size).limit(size)
+            statement.order_by(Room.name, Room.id).offset(offset).limit(size)
         ).all()
         return [
             RoomDetails(room.id, room.name, room.capacity, room.active) for room in rooms

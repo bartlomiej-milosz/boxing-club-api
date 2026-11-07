@@ -6,7 +6,7 @@ Run commands from the repository root after `make setup`.
 
 | Location | Scope | PostgreSQL needed |
 |---|---|---|
-| `unit/` | Isolated functions such as password hashing and length boundaries | No |
+| `unit/` | Password hashing, effective page offsets and UTC normalization boundaries | No |
 | `api/` | HTTP validation, public errors, Swagger/OpenAPI, authentication configuration and health behavior without a working database | No |
 | `integration/` | Real constraints, ORM persistence, service transactions, HTTP workflows and coordinated races | Yes |
 | `support.py` | Shared fixture types, synthetic test constants and race coordination | Used by tests |
@@ -43,6 +43,9 @@ uv run --locked pytest tests/api
 uv run --locked pytest --postgres tests/integration/booking_race_test.py
 uv run --locked pytest --postgres -m concurrency
 
+# Regressions from the Phase 1 review: deadlines and malformed input.
+uv run --locked pytest --postgres tests/integration/database_deadlines_test.py tests/integration/input_boundaries_test.py
+
 # Inspect collection without executing fixtures.
 uv run --locked pytest --collect-only -q
 ```
@@ -66,6 +69,11 @@ normal development database configured in `.env`.
 Constraints and race behavior are tested on PostgreSQL. Race helpers coordinate
 independent sessions with barriers or events and bounded waits. Assertions inspect
 both operation outcomes and the final persisted state.
+
+Database-deadline tests retain independent blocking transactions until the API
+has returned 503. They also exercise an actual slow PostgreSQL statement, rollback
+and subsequent pool reuse. Input-boundary tests cover all six paginated list
+families, biography NUL rejection and dates near the supported UTC boundaries.
 
 ## Adding tests
 

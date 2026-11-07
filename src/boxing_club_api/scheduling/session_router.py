@@ -1,6 +1,5 @@
 """Expose dated class creation with owner authorization and explicit public errors."""
 
-from datetime import timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -51,11 +50,10 @@ def schedule(
 ) -> Page[SessionResponse]:
     """List classes in a bounded interval, defaulting to the next fourteen days."""
     lower = starts_from if starts_from is not None else clock()
-    upper = starts_to if starts_to is not None else lower + timedelta(days=14)
     items, total = list_sessions(
         sessions,
         starts_from=lower,
-        starts_to=upper,
+        starts_to=starts_to,
         trainer_id=trainer_id,
         status=status,
         page=page,

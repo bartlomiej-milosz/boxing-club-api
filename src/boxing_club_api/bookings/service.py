@@ -8,8 +8,9 @@ from psycopg import errors
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 
-from boxing_club_api.core.clock import Clock, utc_now
+from boxing_club_api.core.clock import Clock, as_utc, utc_now
 from boxing_club_api.core.errors import ApplicationError
+from boxing_club_api.core.pagination import page_offset
 from boxing_club_api.db.session import SessionFactory
 from boxing_club_api.identity.authentication import Principal
 from boxing_club_api.identity.models import MemberProfile
@@ -146,6 +147,9 @@ def own_bookings(
 ) -> tuple[list[BookingDetails], int]:
     """Page the caller's retained history by creation and ID, with optional class-date filters."""
     require_member(principal)
+    offset = page_offset(page, size)
+    starts_from = as_utc(starts_from) if starts_from is not None else None
+    starts_to = as_utc(starts_to) if starts_to is not None else None
     if starts_from is not None and starts_to is not None and starts_from >= starts_to:
         raise ApplicationError(422, "VALIDATION_ERROR", "The date interval must be increasing.")
     query = (
@@ -162,9 +166,7 @@ def own_bookings(
     with sessions() as session:
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = session.scalars(
-            query.order_by(Booking.created_at.desc(), Booking.id.desc())
-            .offset(page * size)
-            .limit(size)
+            query.order_by(Booking.created_at.desc(), Booking.id.desc()).offset(offset).limit(size)
         ).all()
         return [booking_details(record) for record in rows], total
 

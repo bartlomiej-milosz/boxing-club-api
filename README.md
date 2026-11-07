@@ -93,8 +93,13 @@ PostgreSQL stores its digest and an eight-hour expiry. Logout revokes that token
 | `POST /bookings/{id}/cancellation` | Owning member cancellation before class start |
 
 Lists return `items`, zero-based `page`, `size` and `total_items`. Default size is
-20, maximum 100. Schedule queries use inclusive `from` and exclusive `to`, default
-to the next 14 days, and allow at most 90 days. Timestamps require UTC offsets.
+20, maximum 100. The effective offset `page * size` must not exceed
+`9223372036854775807`; larger offsets return 422. A representable page beyond the
+available results returns an empty list. Schedule queries use inclusive `from`
+and exclusive `to`, default to the next 14 days, and allow at most 90 days.
+Timestamps require UTC offsets and must be representable after conversion to UTC.
+An unrepresentable default schedule end also returns 422. Trainer biographies
+accept Unicode text and `null` clearing; U+0000 is rejected before persistence.
 Inactive catalog entries require an owner's explicit `include_inactive=true`.
 
 Named PostgreSQL exclusion constraints reject overlapping SCHEDULED room or trainer
@@ -106,6 +111,11 @@ Errors contain `code`, `message` and `request_id`, matching `X-Request-ID`.
 Validation is 422, authentication 401, role rejection 403, inaccessible private
 resources 404, business conflicts 409, and temporary database/lock failures 503.
 Readiness checks schema revision `0004`; liveness has no database dependency.
+Application connections bound lock waits to two seconds and each SQL statement
+to five seconds; connection establishment and pool acquisition each have a
+five-second limit. Failed database operations roll back before returning 503.
+Readiness uses stricter transaction-local SQL limits. Alembic migrations use a
+separate engine and do not inherit the application statement deadline.
 
 ## Verify
 

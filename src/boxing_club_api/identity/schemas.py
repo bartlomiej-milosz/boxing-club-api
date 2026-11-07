@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 from .fields import normalize_email, normalize_name
 from .passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 
+type TrainerBio = Annotated[str, Field(pattern=r"^[^\x00]*$")]
+
 
 class UserResponse(BaseModel):
     """Account identity and roles exposed by authenticated account endpoints."""
@@ -33,7 +35,7 @@ class CreateUserRequest(BaseModel):
     first_name: Annotated[str, Field(min_length=1, max_length=100)]
     last_name: Annotated[str, Field(min_length=1, max_length=100)]
     roles: Annotated[set[Literal["MEMBER", "TRAINER"]], Field(min_length=1, max_length=2)]
-    trainer_bio: str | None = None
+    trainer_bio: TrainerBio | None = None
 
     @field_validator("email")
     @classmethod
@@ -72,7 +74,7 @@ class UpdateTrainerRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    bio: str | None = None
+    bio: TrainerBio | None = None
     active: bool | None = None
 
     @model_validator(mode="after")
