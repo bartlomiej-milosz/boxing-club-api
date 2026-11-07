@@ -27,7 +27,7 @@ Ports are bound to loopback. Override `APP_PORT` or `POSTGRES_PORT` in `.env` if
 Local Compose interpolates URL-safe passwords into its internal connection URLs.
 For example, generate a new value with `uv run python -c 'import secrets; print(secrets.token_urlsafe(24))'`.
 
-- [Interactive API documentation](http://127.0.0.1:8000/docs)
+- [Swagger UI](http://127.0.0.1:8000/docs)
 - [Liveness](http://127.0.0.1:8000/health/live)
 - [Database/schema readiness](http://127.0.0.1:8000/health/ready)
 
@@ -62,6 +62,17 @@ instead of the demo initializer:
 ```sh
 make bootstrap-owner EMAIL=owner@example.test FIRST_NAME=Sample LAST_NAME=Owner
 ```
+
+## Explore the API with Swagger UI
+
+After starting the API, open [Swagger UI](http://127.0.0.1:8000/docs). The generated
+[OpenAPI JSON](http://127.0.0.1:8000/openapi.json) contains the request/response schemas
+and the HTTP bearer security scheme. Adjust the port if `APP_PORT` differs.
+
+Execute `POST /api/v1/auth/login`, copy its `access_token`, then click **Authorize**
+and paste the raw token. Swagger UI adds the `Bearer` prefix. Try `GET /api/v1/me`
+to check the selected identity. Requests run against the actual application and
+persist changes according to its normal rules. Authorization resets on page reload.
 
 ## HTTP API
 
@@ -112,5 +123,7 @@ the development database. SQLite is not used as a substitute for PostgreSQL lock
 or exclusion constraints. CI runs these commands and builds the application image.
 An actual remote CI result must be checked separately from local results.
 
-Detailed project documentation and agent instructions are maintained locally
+See [the test guide](tests/README.md) for test layers and targeted commands, and
+[the scripts guide](scripts/README.md) for the demonstration workflow.
+Detailed planning documentation and agent instructions are maintained locally
 outside Git.

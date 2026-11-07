@@ -24,6 +24,24 @@ from .correlation import correlate
 from .errors import database_unavailable, http_failure, invalid_request, operation_failed
 from .health import router as health_router
 
+API_DESCRIPTION = """
+A single-club API for accounts, trainer and room catalogs, dated classes,
+reservations and cancellation.
+
+### Authenticate in Swagger UI
+
+1. Create the initial owner with the local bootstrap command, or initialize the
+   fictional demo in an empty local database.
+2. Execute `POST /api/v1/auth/login` with an account's email and password.
+3. Copy the returned `access_token`, click **Authorize**, and paste the raw token.
+   Swagger UI adds the `Bearer` prefix to protected requests.
+4. Try `GET /api/v1/me`, then explore the routes available to that account's roles.
+
+Owner, trainer assignment and member ownership rules are enforced by the API.
+Logout revokes the current token. Swagger authorization is cleared on page reload.
+Lists use zero-based pagination and timestamps require a UTC offset.
+"""
+
 
 def create_app() -> FastAPI:
     """Compose routers and settings, opening database resources during application lifespan."""
@@ -45,7 +63,34 @@ def create_app() -> FastAPI:
             app.state.db_sessions = None
             await run_in_threadpool(engine.dispose)
 
-    app = FastAPI(title="boxing-club-api", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="boxing-club-api",
+        version="0.1.0",
+        description=API_DESCRIPTION,
+        docs_url="/docs",
+        openapi_url="/openapi.json",
+        swagger_ui_parameters={"persistAuthorization": False},
+        openapi_tags=[
+            {"name": "auth", "description": "Login and current-token revocation."},
+            {
+                "name": "identity",
+                "description": "Current identity, owner-managed accounts and trainers.",
+            },
+            {
+                "name": "rooms",
+                "description": "Room catalog and owner-managed name/activity changes.",
+            },
+            {
+                "name": "sessions",
+                "description": "Dated classes, availability and owner cancellation.",
+            },
+            {
+                "name": "bookings",
+                "description": "Member reservations, own history and assigned-trainer rosters.",
+            },
+        ],
+        lifespan=lifespan,
+    )
     app.state.clock = utc_now
     app.state.app_env = settings.app_env
     app.state.db_sessions = None

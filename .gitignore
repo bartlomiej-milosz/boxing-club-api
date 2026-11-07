@@ -30,9 +30,5 @@ coverage.xml
 *.log
 .DS_Store
 
-# Readme files
-scripts/README.md
-tests/README.md
-
 # Temporary files
 temp/

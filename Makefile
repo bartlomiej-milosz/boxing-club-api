@@ -2,21 +2,25 @@
 
 help:
 	@printf '%s\n' \
+	  'make help               Show all available commands' \
 	  'make setup              Install locked runtime and development dependencies' \
 	  'make check              Check lint, formatting and types (not tests)' \
-	  'make format             Format Python files' \
+	  'make lint               Check Python imports and lint rules with Ruff' \
+	  'make format             Format Python files with Ruff' \
+	  'make typecheck          Check Python types with ty' \
 	  'make test               Run the default suite without PostgreSQL' \
-	  'make test-integration   Run tests on disposable PostgreSQL' \
-	  'make run                Run the application with Uvicorn' \
+	  'make test-integration   Run integration and race tests on disposable PostgreSQL' \
+	  'make run                Run the API locally with Uvicorn autoreload' \
 	  'make app-up             Build, migrate and start the local Compose API' \
 	  'make app-down           Stop Compose services and preserve database data' \
-	  'make bootstrap-owner    Create the initial owner (EMAIL, FIRST_NAME, LAST_NAME)' \
 	  'make db-up              Start local PostgreSQL and wait for readiness' \
-	  'make db-down            Stop PostgreSQL; preserve its named volume' \
+	  'make db-down            Stop the local database stack; preserve its volume' \
 	  'make db-logs            Follow PostgreSQL logs' \
 	  'make db-shell           Open psql as the local migration owner' \
 	  'make migration-history  Show Alembic revisions without connecting to DB' \
-	  'make migrate            Apply migrations to MIGRATION_DATABASE_URL from .env'
+	  'make migrate            Apply migrations to MIGRATION_DATABASE_URL from .env' \
+	  'make bootstrap-owner    Create the initial owner (EMAIL, FIRST_NAME, LAST_NAME)' \
+	  'make seed-demo          Create fictional demo data in an empty local database'
 
 setup:
 	uv sync --locked
